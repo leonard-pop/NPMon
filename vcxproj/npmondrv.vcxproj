@@ -1,0 +1,146 @@
+<Project DefaultTargets="Build" ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{C1B4E221-B381-45FB-9734-B8B864939639}</ProjectGuid>
+    <TemplateGuid>{F2F62967-0815-4FD7-9B86-6EEDCAC766EB}</TemplateGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>npmondrv</RootNamespace>
+    <ProjectName>npmondrv</ProjectName>
+    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+    <PlatformToolset>v142</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+    <TargetVersion>Windows7</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <TrackFileAccess>false</TrackFileAccess>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <ProjectRoot>..</ProjectRoot>
+    <ProjectIncPath>$(ProjectRoot)\inc</ProjectIncPath>
+    <ProjectSrcPath>$(ProjectRoot)\src</ProjectSrcPath>
+    <GenerateFullPaths>true</GenerateFullPaths>
+    <OutDir>$(ProjectRoot)\build\$(ProjectName)-$(Platform)-$(Configuration)\</OutDir>
+    <OutputPath>$(OutDir)</OutputPath>
+    <IntDir>$(OutDir)</IntDir>
+    <TargetName>npmondrv64</TargetName>
+    <TargetPath>$(OutDir)$(TargetName)$(TargetExt)</TargetPath>
+    <PackageDir>$(OutDir)</PackageDir>
+    <CertificateOutputPath>$(OutDir)$(TargetName).cer</CertificateOutputPath>
+    <TLogLocation>$(OutDir)tlog</TLogLocation>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.default.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Targets" />
+
+  <!-- WARNING: almost all paths need to be set twice (before/after Microsoft.Cpp.*), as some of them get overwritten... -->
+  <PropertyGroup>
+    <OutDir>$(ProjectRoot)\build\$(ProjectName)-$(Platform)-$(Configuration)\</OutDir>
+    <OutputPath>$(OutDir)</OutputPath>
+    <IntDir>$(OutDir)</IntDir>
+    <TargetName>npmondrv64</TargetName>
+    <TargetPath>$(OutDir)$(TargetName)$(TargetExt)</TargetPath>
+    <PackageDir>$(OutDir)</PackageDir>
+    <CertificateOutputPath>$(OutDir)$(TargetName).cer</CertificateOutputPath>
+    <TLogLocation>$(OutDir)tlog</TLogLocation>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup Condition="'$(Configuration)' == 'Debug'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <Optimization>Disabled</Optimization>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <ItemDefinitionGroup Condition="'$(Configuration)' == 'Release'">
+    <ClCompile>
+      <Optimization>MaxSpeed</Optimization>
+      <TreatWarningAsError>false</TreatWarningAsError>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+
+  <ItemGroup>
+
+    <!-- <ClInclude Include="$(ProjectIncPath)\km\npmondrv.h" /> -->
+
+    <ClCompile Include="$(ProjectSrcPath)\km\npmondrv.c" />
+
+    <Inf Include="$(ProjectSrcPath)\km\npmon.inf" />
+
+  </ItemGroup>
+
+  <ItemDefinitionGroup>
+
+    <ClCompile>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <DisableSpecificWarnings>4054;4055;4057;4706;4152;4996;4305;4306;4311;4312;4200;4201</DisableSpecificWarnings>
+      <PreprocessorDefinitions>DRIVER;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <AdditionalIncludeDirectories>$(ProjectRoot)\inc\km;$(ProjectRoot)\inc\umkm;$(WDKContentRoot)\Include\$(Version_Number)\km</AdditionalIncludeDirectories>
+    </ClCompile>
+
+    <Link>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <AdditionalDependencies>fltmgr.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>/INTEGRITYCHECK %(AdditionalOptions)</AdditionalOptions>
+    </Link>
+
+    <PreBuildEvent>
+      <Command>del $(OutDir)tlog\*.tlog</Command>
+      <Message>Removing .tlog files...</Message>
+    </PreBuildEvent>
+
+    <PostBuildEvent>
+      <Command>signtool sign /fd SHA256 $(TargetPath)</Command>
+      <Message>Signing driver...</Message>
+    </PostBuildEvent>
+
+    <PostBuildEvent>
+      <Command>del $(OutDir)*.ilk</Command>
+      <Message>Removing .ilk files...</Message>
+    </PostBuildEvent>
+
+    <PostBuildEvent Condition="Exists($(CopyDriverTo))">
+      <Command>
+        copy /Y $(OutDir)*.sys $(CopyDriverTo)\
+        copy /Y $(OutDir)*.inf $(CopyDriverTo)\
+        copy /Y $(OutDir)*.pdb $(CopyDriverTo)\
+        copy /Y $(ProjectRoot)\tools\*_driver.bat $(CopyDriverTo)\
+        <!-- copy /Y $(ProjectRoot)\build\npmon*.dll $(CopyDriverTo)\ -->
+        <!-- copy /Y $(ProjectRoot)\build\npmon*.exe $(CopyDriverTo)\ -->
+      </Command>
+      <Message>(Optional) Copying driver files...</Message>
+    </PostBuildEvent>
+
+  </ItemDefinitionGroup>
+
+  <Import Project="clean.vcxproj" />
+
+</Project>
