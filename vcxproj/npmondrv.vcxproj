@@ -87,6 +87,7 @@
   <ItemGroup>
 
     <!-- <ClInclude Include="$(ProjectIncPath)\km\npmondrv.h" /> -->
+    <ClInclude Include="$(ProjectSrcPath)\common\commondefs.h" />
 
     <ClCompile Include="$(ProjectSrcPath)\km\npmondrv.c" />
 
@@ -103,7 +104,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <AdditionalIncludeDirectories>$(ProjectRoot)\inc\km;$(ProjectRoot)\inc\umkm;$(WDKContentRoot)\Include\$(Version_Number)\km</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectRoot)\src\common;$(WDKContentRoot)\Include\$(Version_Number)\km</AdditionalIncludeDirectories>
     </ClCompile>
 
     <Link>

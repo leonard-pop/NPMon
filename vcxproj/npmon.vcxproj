@@ -1,0 +1,27 @@
+<Project DefaultTargets="Build" ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{103D43A6-D125-4E73-BC95-F1E2F38EAD30}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>NPMon</RootNamespace>
+    <ProjectName>npmon</ProjectName>
+    <ConfigurationType>Application</ConfigurationType>
+  </PropertyGroup>
+
+  <Import Project="common.vcxproj" />
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <!--<ClInclude Include="$(ProjectSrcPath)\common\commondefs.h" />-->
+
+    <ClCompile Include="$(ProjectSrcPath)\um\npmon.cpp" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,111 @@
+<Project DefaultTargets="Build" ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup>
+    <Bits Condition="'$(Platform)' == 'x64'">64</Bits>
+    <Bits Condition="'$(Platform)' == 'Win32'">32</Bits>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <ProjectRoot>..</ProjectRoot>
+    <ProjectIncPath>$(ProjectRoot)\inc</ProjectIncPath>
+    <ProjectSrcPath>$(ProjectRoot)\src</ProjectSrcPath>
+    <GenerateFullPaths>true</GenerateFullPaths>
+    <PlatformToolset>v142</PlatformToolset>
+    <BuildPath>$(ProjectRoot)\build</BuildPath>
+    <OutDir>$(BuildPath)\</OutDir>
+    <IntDir>$(OutDir)$(ProjectName)-$(Platform)-$(Configuration)\</IntDir>
+    <!--
+      <IntermediateOutputPath>$(OutputPath)\interm\</IntermediateOutputPath>
+      <IntDir Condition="'$(IntDir)'=='' AND '$(IntermediateOutputPath)'==''">$(Platform)\$(Configuration)\</IntDir>
+      <OutDir Condition="'$(OutDir)'=='' AND '$(SolutionDir)' == ''">$(IntDir)</OutDir>
+      <OutDir Condition="'$(OutDir)'=='' AND '$(SolutionDir)' != ''">$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
+    -->
+    <TargetName Condition="'$(Configuration)' == 'Release'">$(ProjectName)$(Bits)</TargetName>
+    <TargetName Condition="'$(Configuration)' == 'Debug'">$(ProjectName)$(Bits).debug</TargetName>
+    <!--TargetPath>$(OutDir)$(TargetName)$(TargetExt)</TargetPath-->
+  </PropertyGroup>
+
+  <!-- the following imports must stay below the <PlatformToolset> <PropertyGroup> above -->
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.default.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Targets" />
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+    </ClCompile>
+    <Link>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <FullProgramDatabaseFile>true</FullProgramDatabaseFile>
+    </Link>
+    <PostBuildEvent>
+      <Command>del $(OutDir)\*.ilk</Command>
+      <Message>Removing .ilk files...</Message>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+
+  <ItemDefinitionGroup Condition="'$(Configuration)' == 'Debug'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <Optimization>Disabled</Optimization>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <ItemDefinitionGroup Condition="'$(Configuration)' == 'Release'">
+    <ClCompile>
+      <Optimization>MaxSpeed</Optimization>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <DisableSpecificWarnings>4054;4055;4057;4706;4152;4996;4305;4306;4311;4312;4200;4201</DisableSpecificWarnings>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary> <!-- MultiThreadedDebug,MultiThreadedDLL -->
+      <CompileAsWinRT>false</CompileAsWinRT>
+      <!--ProgramDataBaseFileName>$(OutputPath)\$(ProjectName).c.pdb</ProgramDataBaseFileName-->
+      <AdditionalIncludeDirectories>$(ProjectRoot)\src\common;$(WDKContentRoot)\Include\$(Version_Number)\um;$(WDKContentRoot)\Include\10.0.20348.0\um</AdditionalIncludeDirectories>
+      <!--SDLCheck>true</SDLCheck-->  <!-- clashes with /GS- -->
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>fltLib.lib</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <Import Project="clean.vcxproj" />
+</Project>
