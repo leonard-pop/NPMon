@@ -3,25 +3,29 @@
 #include <ntintsafe.h>
 #include "commondefs.h"
 
-FLT_PREOP_CALLBACK_STATUS FLTAPI PreOperationCreate(
+FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationCreate(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext);
+    _In_ PVOID CompletionContext,
+    _In_ FLT_POST_OPERATION_FLAGS Flags);
 
-FLT_PREOP_CALLBACK_STATUS FLTAPI PreOperationCreateNamedPipe(
+FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationCreateNamedPipe(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext);
+    _In_ PVOID CompletionContext,
+    _In_ FLT_POST_OPERATION_FLAGS Flags);
 
-FLT_PREOP_CALLBACK_STATUS FLTAPI PreOperationRead(
+FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationRead(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext);
+    _In_ PVOID CompletionContext,
+    _In_ FLT_POST_OPERATION_FLAGS Flags);
 
-FLT_PREOP_CALLBACK_STATUS FLTAPI PreOperationWrite(
+FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationWrite(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext);
+    _In_ PVOID CompletionContext,
+    _In_ FLT_POST_OPERATION_FLAGS Flags);
 
 NTSTATUS FLTAPI InstanceFilterUnloadCallback(
     _In_ FLT_FILTER_UNLOAD_FLAGS Flags);
@@ -59,26 +63,26 @@ CONST FLT_OPERATION_REGISTRATION g_callbacks[] =
     {
         IRP_MJ_CREATE,
         0,
-        PreOperationCreate,
-        0
+        0,
+        PostOperationCreate,
     },
     {
         IRP_MJ_CREATE_NAMED_PIPE,
         0,
-        PreOperationCreateNamedPipe,
-        0
+        0,
+        PostOperationCreateNamedPipe,
     },
     {
         IRP_MJ_READ,
         0,
-        PreOperationRead,
-        0
+        0,
+        PostOperationRead,
     },
     {
         IRP_MJ_WRITE,
         0,
-        PreOperationWrite,
-        0
+        0,
+        PostOperationWrite,
     },
     {IRP_MJ_OPERATION_END}
 };
@@ -164,74 +168,85 @@ done:
     return status;
 }
 
-FLT_PREOP_CALLBACK_STATUS FLTAPI PreOperationCreate(
+FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationCreate(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext)
+    _In_ PVOID CompletionContext,
+    _In_ FLT_POST_OPERATION_FLAGS Flags)
 {
-    UNREFERENCED_PARAMETER(Data);
+    UNREFERENCED_PARAMETER(FltObjects);
     UNREFERENCED_PARAMETER(CompletionContext);
-
-    if(FltObjects->FileObject->DeviceObject->DeviceType ==
-            FILE_DEVICE_NAMED_PIPE) {
-        DbgPrint("Named pipe create captured: %wZ\n",
-                FltObjects->FileObject->FileName);
-    }
-
-    return FLT_PREOP_SUCCESS_NO_CALLBACK;
-}
-
-FLT_PREOP_CALLBACK_STATUS FLTAPI PreOperationCreateNamedPipe(
-    _Inout_ PFLT_CALLBACK_DATA Data,
-    _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext)
-{
-    UNREFERENCED_PARAMETER(Data);
-    UNREFERENCED_PARAMETER(CompletionContext);
-
-    DbgPrint("CreateNamedPipe captured: %wZ\n",
-            &FltObjects->FileObject->FileName);
-
-    return FLT_PREOP_SUCCESS_NO_CALLBACK;
-}
-
-FLT_PREOP_CALLBACK_STATUS FLTAPI PreOperationRead(
-    _Inout_ PFLT_CALLBACK_DATA Data,
-    _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext)
-{
-    UNREFERENCED_PARAMETER(Data);
-    UNREFERENCED_PARAMETER(CompletionContext);
-
-    //DbgPrint("Read captured: %wZ ", &Data->Iopb->TargetFileObject->FileName);
+    UNREFERENCED_PARAMETER(Flags);
 
     if(FltObjects->FileObject->DeviceObject->DeviceType !=
             FILE_DEVICE_NAMED_PIPE) {
-        return FLT_PREOP_SUCCESS_NO_CALLBACK;
+        return FLT_POSTOP_FINISHED_PROCESSING;
+    }
+
+    DbgPrint("Named pipe create captured: %wZ, status: %x\n",
+            FltObjects->FileObject->FileName,
+            Data->IoStatus.Status);
+
+    return FLT_POSTOP_FINISHED_PROCESSING;
+}
+
+FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationCreateNamedPipe(
+    _Inout_ PFLT_CALLBACK_DATA Data,
+    _In_ PCFLT_RELATED_OBJECTS FltObjects,
+    _In_ PVOID CompletionContext,
+    _In_ FLT_POST_OPERATION_FLAGS Flags)
+{
+    UNREFERENCED_PARAMETER(Data);
+    UNREFERENCED_PARAMETER(FltObjects);
+    UNREFERENCED_PARAMETER(CompletionContext);
+    UNREFERENCED_PARAMETER(Flags);
+
+    DbgPrint("CreateNamedPipe captured: %wZ, status: %x\n",
+            &FltObjects->FileObject->FileName,
+            Data->IoStatus.Status);
+
+    return FLT_POSTOP_FINISHED_PROCESSING;
+}
+
+FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationRead(
+    _Inout_ PFLT_CALLBACK_DATA Data,
+    _In_ PCFLT_RELATED_OBJECTS FltObjects,
+    _In_ PVOID CompletionContext,
+    _In_ FLT_POST_OPERATION_FLAGS Flags)
+{
+    UNREFERENCED_PARAMETER(Data);
+    UNREFERENCED_PARAMETER(CompletionContext);
+
+    if(FltObjects->FileObject->DeviceObject->DeviceType !=
+            FILE_DEVICE_NAMED_PIPE) {
+        return FLT_POSTOP_FINISHED_PROCESSING;
     }
 
     NTSTATUS status;
     PMDL *ReadMdl = NULL;
     PVOID ReadAddress = NULL;
 
-    DbgPrint("Named pipe read captured: %wZ\n",
-            FltObjects->FileObject->FileName);
+    DbgPrint("Named pipe read captured: %wZ, status: %x\n",
+            FltObjects->FileObject->FileName,
+            Data->IoStatus.Status);
 
-    return FLT_PREOP_SUCCESS_NO_CALLBACK;
+    return FLT_POSTOP_FINISHED_PROCESSING;
 }
 
-FLT_PREOP_CALLBACK_STATUS FLTAPI PreOperationWrite(
+FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationWrite(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext)
+    _In_ PVOID CompletionContext,
+    _In_ FLT_POST_OPERATION_FLAGS Flags)
 {
+    UNREFERENCED_PARAMETER(Data);
+    UNREFERENCED_PARAMETER(FltObjects);
     UNREFERENCED_PARAMETER(CompletionContext);
-
-    //DbgPrint("Write captured: %wZ ", &Data->Iopb->TargetFileObject->FileName);
+    UNREFERENCED_PARAMETER(Flags);
 
     if(FltObjects->FileObject->DeviceObject->DeviceType !=
             FILE_DEVICE_NAMED_PIPE) {
-        return FLT_PREOP_SUCCESS_NO_CALLBACK;
+        return FLT_POSTOP_FINISHED_PROCESSING;
     }
 
     NTSTATUS status;
@@ -240,8 +255,10 @@ FLT_PREOP_CALLBACK_STATUS FLTAPI PreOperationWrite(
     ULONG write_length = Data->Iopb->Parameters.Write.Length;
     PVOID write_buffer = Data->Iopb->Parameters.Write.WriteBuffer;
 
-    DbgPrint("Named pipe write captured: %wZ, length: %lu, buffer: %.*wZ\n",
-            FltObjects->FileObject->FileName, write_length,
+    DbgPrint("Named pipe write captured: %wZ, status: %d, length: %lu, buffer: %.*wZ\n",
+            FltObjects->FileObject->FileName,
+            Data->IoStatus.Status,
+            write_length,
             write_length, write_buffer);
 
     if(g_client_port) {
@@ -260,7 +277,7 @@ FLT_PREOP_CALLBACK_STATUS FLTAPI PreOperationWrite(
         KeReleaseGuardedMutex(&comm_mutex);
     }
 
-    return FLT_PREOP_SUCCESS_NO_CALLBACK;
+    return FLT_POSTOP_FINISHED_PROCESSING;
 }
 
 NTSTATUS FLTAPI InstanceFilterUnloadCallback(
