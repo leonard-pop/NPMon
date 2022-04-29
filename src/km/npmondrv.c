@@ -1,6 +1,7 @@
 #include <fltKernel.h>
 #include <wdm.h>
 #include <ntintsafe.h>
+#include <ntddk.h>
 #include "commondefs.h"
 
 FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationCreate(
@@ -106,7 +107,8 @@ CONST FLT_REGISTRATION g_filter_registration =
 
 PFLT_FILTER g_minifilter_handle = NULL;
 PFLT_PORT g_server_port = NULL, g_client_port = NULL;
-KGUARDED_MUTEX comm_mutex;
+KGUARDED_MUTEX g_message_id_mutex;
+ULONG g_next_message_id = 0;
 
 NTSTATUS DriverEntry(
     IN PDRIVER_OBJECT DriverObject,
@@ -150,7 +152,7 @@ NTSTATUS DriverEntry(
         goto done;
     }
 
-    ExInitializeFastMutex(&comm_mutex);
+    ExInitializeFastMutex(&g_message_id_mutex);
 
 done:
     if(port_security_descriptor)
@@ -166,6 +168,97 @@ done:
     }
 
     return status;
+}
+
+ULONG GetNewMessageID() {
+    ULONG new_message_id;
+    KeAcquireGuardedMutex(&g_message_id_mutex);
+
+    new_message_id = g_next_message_id;
+    g_next_message_id++;
+
+    KeReleaseGuardedMutex(&g_message_id_mutex);
+
+    return new_message_id;
+}
+
+void SendChunk(MessageChunk *chunk) {
+    FltSendMessage(g_minifilter_handle, &g_client_port, chunk,
+            sizeof(MessageChunk), NULL, NULL, NULL);
+}
+
+void AddToChunkBuffer(MessageChunk *chunk, char **buffer_end,
+        char *data, long long size) {
+    long long buffer_free = CHUNK_BUFFER_SIZE -
+        ((*buffer_end) - chunk->buffer);
+
+    while(buffer_free < size) {
+        RtlCopyMemory(*buffer_end, data, buffer_free);
+
+        SendChunk(chunk);
+
+        data += buffer_free;
+        size -= buffer_free;
+        *buffer_end = chunk->buffer;
+        buffer_free = CHUNK_BUFFER_SIZE;
+    }
+
+    if(size) {
+        RtlCopyMemory(*buffer_end, data, size);
+        *buffer_end += size;
+    }
+}
+
+void SendMessageWrite(
+    UNICODE_STRING file_name,
+    HANDLE pid,
+    NTSTATUS status,
+    ULONG write_length,
+    char* write_buffer)
+{
+    // ## REMOVE THIS ##
+    if(file_name.Buffer == NULL || wcsstr(file_name.Buffer,
+            L"testing") == NULL) {
+        return;
+    }
+    // #################
+
+    ULONG message_tag = '1gsM';
+    char *buffer_end;
+    long long buffer_free;
+    MessageType type = MESSAGE_WRITE;
+    MessageChunk *chunk =
+        (MessageChunk*)ExAllocatePoolWithTag(
+            PagedPool, sizeof(MessageChunk), message_tag);
+
+    chunk->message_id = GetNewMessageID();
+    chunk->final_chunk = 0;
+    buffer_end = chunk->buffer;
+
+    AddToChunkBuffer(chunk, &buffer_end, (char*)&type,
+            sizeof(MessageType));
+    AddToChunkBuffer(chunk, &buffer_end, (char*)&pid,
+            sizeof(pid));
+    AddToChunkBuffer(chunk, &buffer_end, (char*)&status,
+            sizeof(status));
+    AddToChunkBuffer(chunk, &buffer_end, (char*)&file_name.Length,
+            sizeof(file_name.Length));
+    AddToChunkBuffer(chunk, &buffer_end, (char*)file_name.Buffer,
+            file_name.Length);
+    AddToChunkBuffer(chunk, &buffer_end, (char*)&write_length,
+            sizeof(write_length));
+    AddToChunkBuffer(chunk, &buffer_end, (char*)write_buffer,
+            write_length);
+
+    buffer_free = CHUNK_BUFFER_SIZE -
+        (buffer_end - chunk->buffer);
+    if(buffer_free > 0) {
+        RtlFillMemory(buffer_end, buffer_free, 0);
+    }
+    chunk->final_chunk = 1;
+    SendChunk(chunk);
+
+    ExFreePoolWithTag(chunk, message_tag);
 }
 
 FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationCreate(
@@ -222,10 +315,6 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationRead(
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
 
-    NTSTATUS status;
-    PMDL *ReadMdl = NULL;
-    PVOID ReadAddress = NULL;
-
     DbgPrint("Named pipe read captured: %wZ, status: %x\n",
             FltObjects->FileObject->FileName,
             Data->IoStatus.Status);
@@ -249,32 +338,23 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationWrite(
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
 
-    NTSTATUS status;
-    PMDL *mdl = NULL;
-    PVOID mdl_address = NULL;
     ULONG write_length = Data->Iopb->Parameters.Write.Length;
-    PVOID write_buffer = Data->Iopb->Parameters.Write.WriteBuffer;
+    char* write_buffer = (char*)Data->Iopb->Parameters.Write.WriteBuffer;
+    HANDLE pid = PsGetCurrentProcessId();
 
-    DbgPrint("Named pipe write captured: %wZ, status: %d, length: %lu, buffer: %.*wZ\n",
+    DbgPrint("Named pipe write captured: %wZ, status: %x, pid %lu, length: %lu, buffer: %.*wZ\n",
             FltObjects->FileObject->FileName,
             Data->IoStatus.Status,
+            pid,
             write_length,
             write_length, write_buffer);
 
     if(g_client_port) {
-        KeAcquireGuardedMutex(&comm_mutex);
-
-        DbgPrint("Sending buffer to connected client (length %lu)\n", write_length);
-
-        FltSendMessage(g_minifilter_handle, &g_client_port,
-                &write_length, sizeof(write_length), NULL, NULL, NULL);
-
-        if(write_length && write_length <= 2048) {
-            FltSendMessage(g_minifilter_handle, &g_client_port,
-                    write_buffer, write_length, NULL, NULL, NULL);
-        }
-
-        KeReleaseGuardedMutex(&comm_mutex);
+        SendMessageWrite(FltObjects->FileObject->FileName,
+                pid,
+                Data->IoStatus.Status,
+                write_length,
+                write_buffer);
     }
 
     return FLT_POSTOP_FINISHED_PROCESSING;
