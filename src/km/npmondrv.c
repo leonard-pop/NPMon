@@ -209,6 +209,58 @@ void AddToChunkBuffer(MessageChunk *chunk, char **buffer_end,
     }
 }
 
+void SendMessageRead(
+    UNICODE_STRING file_name,
+    HANDLE pid,
+    NTSTATUS status,
+    ULONG read_length,
+    char* read_buffer)
+{
+    // ## REMOVE THIS ##
+    if(file_name.Buffer == NULL || wcsstr(file_name.Buffer,
+            L"testing") == NULL) {
+        return;
+    }
+    // #################
+
+    ULONG message_tag = 'rgsM';
+    char *buffer_end;
+    long long buffer_free;
+    MessageType type = MESSAGE_READ;
+    MessageChunk *chunk =
+        (MessageChunk*)ExAllocatePoolWithTag(
+            PagedPool, sizeof(MessageChunk), message_tag);
+
+    chunk->message_id = GetNewMessageID();
+    chunk->final_chunk = 0;
+    buffer_end = chunk->buffer;
+
+    AddToChunkBuffer(chunk, &buffer_end, (char*)&type,
+            sizeof(MessageType));
+    AddToChunkBuffer(chunk, &buffer_end, (char*)&pid,
+            sizeof(pid));
+    AddToChunkBuffer(chunk, &buffer_end, (char*)&status,
+            sizeof(status));
+    AddToChunkBuffer(chunk, &buffer_end, (char*)&file_name.Length,
+            sizeof(file_name.Length));
+    AddToChunkBuffer(chunk, &buffer_end, (char*)file_name.Buffer,
+            file_name.Length);
+    AddToChunkBuffer(chunk, &buffer_end, (char*)&read_length,
+            sizeof(read_length));
+    AddToChunkBuffer(chunk, &buffer_end, (char*)read_buffer,
+            read_length);
+
+    buffer_free = CHUNK_BUFFER_SIZE -
+        (buffer_end - chunk->buffer);
+    if(buffer_free > 0) {
+        RtlFillMemory(buffer_end, buffer_free, 0);
+    }
+    chunk->final_chunk = 1;
+    SendChunk(chunk);
+
+    ExFreePoolWithTag(chunk, message_tag);
+}
+
 void SendMessageWrite(
     UNICODE_STRING file_name,
     HANDLE pid,
@@ -223,7 +275,7 @@ void SendMessageWrite(
     }
     // #################
 
-    ULONG message_tag = '1gsM';
+    ULONG message_tag = 'wgsM';
     char *buffer_end;
     long long buffer_free;
     MessageType type = MESSAGE_WRITE;
@@ -318,6 +370,25 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationRead(
     DbgPrint("Named pipe read captured: %wZ, status: %x\n",
             FltObjects->FileObject->FileName,
             Data->IoStatus.Status);
+
+    ULONG read_length = Data->Iopb->Parameters.Read.Length;
+    char* read_buffer = (char*)Data->Iopb->Parameters.Read.ReadBuffer;
+    HANDLE pid = PsGetCurrentProcessId();
+
+    DbgPrint("Named pipe read captured: %wZ, status: %x, pid %lu, length: %lu, buffer: %.*wZ\n",
+            FltObjects->FileObject->FileName,
+            Data->IoStatus.Status,
+            pid,
+            read_length,
+            read_length, read_buffer);
+
+    if(g_client_port) {
+        SendMessageRead(FltObjects->FileObject->FileName,
+                pid,
+                Data->IoStatus.Status,
+                read_length,
+                read_buffer);
+    }
 
     return FLT_POSTOP_FINISHED_PROCESSING;
 }

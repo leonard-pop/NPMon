@@ -85,6 +85,51 @@ void extractFromBufferChunks(unsigned char* destination, std::vector<MessageChun
     }
 }
 
+ReadOperation* parseReadOperation(std::vector<MessageChunk> &chunks) {
+    ReadOperation *read_operation = new ReadOperation;
+    unsigned int chunk_index = 0;
+    unsigned char *buffer_pos;
+    buffer_pos = chunks[chunk_index].buffer + sizeof(MessageType);
+
+    read_operation->pipe_name = nullptr;
+    read_operation->buffer = nullptr;
+
+    try {
+        extractFromBufferChunks((unsigned char*)&read_operation->pid, chunks,
+                sizeof(read_operation->pid), chunk_index, &buffer_pos);
+        extractFromBufferChunks((unsigned char*)&read_operation->status, chunks,
+                sizeof(read_operation->status), chunk_index, &buffer_pos);
+
+        extractFromBufferChunks((unsigned char*)&read_operation->pipe_name_size,
+                chunks, sizeof(read_operation->pipe_name_size),
+                chunk_index, &buffer_pos);
+        read_operation->pipe_name = new wchar_t[read_operation->pipe_name_size + 1];
+        extractFromBufferChunks((unsigned char*)read_operation->pipe_name,
+                chunks, read_operation->pipe_name_size,
+                chunk_index, &buffer_pos);
+        read_operation->pipe_name[read_operation->pipe_name_size - 1] = L'\0';
+
+        extractFromBufferChunks((unsigned char*)&read_operation->buffer_size,
+                chunks, sizeof(read_operation->buffer_size),
+                chunk_index, &buffer_pos);
+        read_operation->buffer = new unsigned char[read_operation->buffer_size];
+        extractFromBufferChunks((unsigned char*)read_operation->buffer,
+                chunks, read_operation->buffer_size,
+                chunk_index, &buffer_pos);
+    } catch(std::exception) {
+        if(read_operation->pipe_name != nullptr) {
+            delete read_operation->pipe_name;
+        }
+        if(read_operation->buffer != nullptr) {
+            delete read_operation->buffer;
+        }
+
+        return nullptr;
+    }
+
+    return read_operation;
+}
+
 WriteOperation* parseWriteOperation(std::vector<MessageChunk> &chunks) {
     WriteOperation *write_operation = new WriteOperation;
     unsigned int chunk_index = 0;
@@ -134,14 +179,27 @@ Operation parseMessageChunks(std::vector<MessageChunk> &chunks) {
     Operation operation;
 
     switch(*(MessageType*)chunks[0].buffer) {
+        case MESSAGE_READ:
+            operation.type = OPERATION_READ;
+            operation.details.read_operation =
+                parseReadOperation(chunks);
+
+            if(operation.details.read_operation == nullptr) {
+                printf("[!!!] Invalid message\n");
+                operation.type = OPERATION_INVALID;
+            }
+
+            break;
         case MESSAGE_WRITE:
             operation.type = OPERATION_WRITE;
             operation.details.write_operation =
                 parseWriteOperation(chunks);
+
             if(operation.details.write_operation == nullptr) {
                 printf("[!!!] Invalid message\n");
                 operation.type = OPERATION_INVALID;
             }
+
             break;
         default:
             operation.type = OPERATION_INVALID;
@@ -150,8 +208,28 @@ Operation parseMessageChunks(std::vector<MessageChunk> &chunks) {
     return operation;
 }
 
+void printReadOperation(ReadOperation *read_operation) {
+    printf("Read operation, pid: %u, status: %x, "
+            "pipe name size: %u, pipe name: %ls, "
+            "buffer size: %u, buffer: ",
+            read_operation->pid,
+            read_operation->status,
+            read_operation->pipe_name_size,
+            read_operation->pipe_name,
+            read_operation->buffer_size);
+
+    for(unsigned int i = 0; i < read_operation->buffer_size; i++) {
+        printf("%02X", read_operation->buffer[i]);
+    }
+
+    printf("\n");
+}
+
 void printWriteOperation(WriteOperation *write_operation) {
-    printf("Write operation, status: %x, pipe name size: %u, pipe name: %ls, buffer size: %u, buffer: ",
+    printf("Write operation, pid: %u, status: %x, "
+            "pipe name size: %u, pipe name: %ls, "
+            "buffer size: %u, buffer: ",
+            write_operation->pid,
             write_operation->status,
             write_operation->pipe_name_size,
             write_operation->pipe_name,
@@ -166,6 +244,9 @@ void printWriteOperation(WriteOperation *write_operation) {
 
 void printOperation(const Operation &operation) {
     switch(operation.type) {
+        case OPERATION_READ:
+            printReadOperation(operation.details.read_operation);
+            break;
         case OPERATION_WRITE:
             printWriteOperation(operation.details.write_operation);
             break;
