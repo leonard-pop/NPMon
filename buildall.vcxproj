@@ -35,4 +35,21 @@
         />
     </Target>
 
+    <Target Name="BuildUM">
+        <MSBuild
+            Projects="$(MSBuildProjectDirectory)\vcxproj\npmon.vcxproj"
+            Properties="Configuration=%(ConfigList.Identity);Platform=x64"
+            Targets="Build"
+            BuildInParallel="True"
+        />
+    </Target>
+
+    <Target Name="BuildKM">
+        <MSBuild
+            Projects="$(MSBuildProjectDirectory)\vcxproj\npmondrv.vcxproj"
+            Properties="Configuration=%(ConfigList.Identity);Platform=x64"
+            Targets="Build"
+            BuildInParallel="True"
+        />
+    </Target>
 </Project>

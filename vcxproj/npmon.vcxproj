@@ -12,14 +12,23 @@
 
   <ItemDefinitionGroup>
     <ClCompile>
+      <AdditionalIncludeDirectories>$(ProjectRoot)\imgui;$(ProjectRoot)\imgui\backends;%(ProjectRoot)\imgui\libs\glfw\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
+      <AdditionalDependencies>fltLib.lib;d3d10.lib;d3dcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
 
   <ItemGroup>
-    <!--<ClInclude Include="$(ProjectSrcPath)\common\commondefs.h" />-->
+    <ClCompile Include="$(ProjectRoot)\imgui\imgui*.cpp" />
+    <!--
+    <ClCompile Include="$(ProjectRoot)\imgui\imgui_draw.cpp" />
+    <ClCompile Include="$(ProjectRoot)\imgui\imgui_tables.cpp" />
+    <ClCompile Include="$(ProjectRoot)\imgui\imgui_widgets.cpp" />
+    -->
+    <ClCompile Include="$(ProjectRoot)\imgui\backends\imgui_impl_win32.cpp" />
+    <ClCompile Include="$(ProjectRoot)\imgui\backends\imgui_impl_dx10.cpp" />
 
     <ClCompile Include="$(ProjectSrcPath)\um\npmon.cpp" />
   </ItemGroup>

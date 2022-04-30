@@ -103,7 +103,6 @@
       <!--SDLCheck>true</SDLCheck-->  <!-- clashes with /GS- -->
     </ClCompile>
     <Link>
-      <AdditionalDependencies>fltLib.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
 
