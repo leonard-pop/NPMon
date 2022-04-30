@@ -8,8 +8,8 @@
 #include "commondefs.h"
 
 typedef enum _OperationType {
-    OPERATION_CREATE, OPERATION_READ, OPERATION_WRITE,
-    OPERATION_INVALID
+    OPERATION_CREATE, OPERATION_CREATE_NAMED_PIPE, OPERATION_READ,
+    OPERATION_WRITE, OPERATION_INVALID
 } OperationType;
 
 #pragma pack(push, 1)
@@ -18,6 +18,13 @@ typedef struct {
     MessageChunk chunk;
 } Message;
 #pragma pack(pop)
+
+typedef struct {
+    HANDLE pid;
+    NTSTATUS status;
+    USHORT pipe_name_size;
+    wchar_t *pipe_name;
+} CreateNamedPipeOperation;
 
 typedef struct {
     HANDLE pid;
@@ -47,6 +54,7 @@ typedef struct {
 typedef struct {
     OperationType type;
     union {
+        CreateNamedPipeOperation *create_np_operation;
         CreateOperation *create_operation;
         ReadOperation *read_operation;
         WriteOperation *write_operation;
@@ -83,6 +91,72 @@ void extractFromBufferChunks(unsigned char* destination, std::vector<MessageChun
         memcpy(destination, *buffer_pos, size);
         *buffer_pos += size;
     }
+}
+
+CreateOperation* parseCreateOperation(std::vector<MessageChunk> &chunks) {
+    CreateOperation *create_operation = new CreateOperation;
+    unsigned int chunk_index = 0;
+    unsigned char *buffer_pos;
+    buffer_pos = chunks[chunk_index].buffer + sizeof(MessageType);
+
+    create_operation->pipe_name = nullptr;
+
+    try {
+        extractFromBufferChunks((unsigned char*)&create_operation->pid, chunks,
+                sizeof(create_operation->pid), chunk_index, &buffer_pos);
+        extractFromBufferChunks((unsigned char*)&create_operation->status, chunks,
+                sizeof(create_operation->status), chunk_index, &buffer_pos);
+
+        extractFromBufferChunks((unsigned char*)&create_operation->pipe_name_size,
+                chunks, sizeof(create_operation->pipe_name_size),
+                chunk_index, &buffer_pos);
+        create_operation->pipe_name = new wchar_t[create_operation->pipe_name_size + 1];
+        extractFromBufferChunks((unsigned char*)create_operation->pipe_name,
+                chunks, create_operation->pipe_name_size,
+                chunk_index, &buffer_pos);
+        create_operation->pipe_name[create_operation->pipe_name_size - 1] = L'\0';
+    } catch(std::exception) {
+        if(create_operation->pipe_name != nullptr) {
+            delete create_operation->pipe_name;
+        }
+
+        return nullptr;
+    }
+
+    return create_operation;
+}
+
+CreateNamedPipeOperation* parseCreateNamedPipeOperation(std::vector<MessageChunk> &chunks) {
+    CreateNamedPipeOperation *create_np_operation = new CreateNamedPipeOperation;
+    unsigned int chunk_index = 0;
+    unsigned char *buffer_pos;
+    buffer_pos = chunks[chunk_index].buffer + sizeof(MessageType);
+
+    create_np_operation->pipe_name = nullptr;
+
+    try {
+        extractFromBufferChunks((unsigned char*)&create_np_operation->pid, chunks,
+                sizeof(create_np_operation->pid), chunk_index, &buffer_pos);
+        extractFromBufferChunks((unsigned char*)&create_np_operation->status, chunks,
+                sizeof(create_np_operation->status), chunk_index, &buffer_pos);
+
+        extractFromBufferChunks((unsigned char*)&create_np_operation->pipe_name_size,
+                chunks, sizeof(create_np_operation->pipe_name_size),
+                chunk_index, &buffer_pos);
+        create_np_operation->pipe_name = new wchar_t[create_np_operation->pipe_name_size + 1];
+        extractFromBufferChunks((unsigned char*)create_np_operation->pipe_name,
+                chunks, create_np_operation->pipe_name_size,
+                chunk_index, &buffer_pos);
+        create_np_operation->pipe_name[create_np_operation->pipe_name_size - 1] = L'\0';
+    } catch(std::exception) {
+        if(create_np_operation->pipe_name != nullptr) {
+            delete create_np_operation->pipe_name;
+        }
+
+        return nullptr;
+    }
+
+    return create_np_operation;
 }
 
 ReadOperation* parseReadOperation(std::vector<MessageChunk> &chunks) {
@@ -179,6 +253,28 @@ Operation parseMessageChunks(std::vector<MessageChunk> &chunks) {
     Operation operation;
 
     switch(*(MessageType*)chunks[0].buffer) {
+        case MESSAGE_CREATE:
+            operation.type = OPERATION_CREATE;
+            operation.details.create_operation =
+                parseCreateOperation(chunks);
+
+            if(operation.details.create_operation == nullptr) {
+                printf("[!!!] Invalid message\n");
+                operation.type = OPERATION_INVALID;
+            }
+
+            break;
+        case MESSAGE_CREATE_NAMED_PIPE:
+            operation.type = OPERATION_CREATE_NAMED_PIPE;
+            operation.details.create_np_operation =
+                parseCreateNamedPipeOperation(chunks);
+
+            if(operation.details.create_np_operation == nullptr) {
+                printf("[!!!] Invalid message\n");
+                operation.type = OPERATION_INVALID;
+            }
+
+            break;
         case MESSAGE_READ:
             operation.type = OPERATION_READ;
             operation.details.read_operation =
@@ -206,6 +302,24 @@ Operation parseMessageChunks(std::vector<MessageChunk> &chunks) {
     }
 
     return operation;
+}
+
+void printCreateOperation(CreateOperation *create_operation) {
+    printf("Create operation, pid: %u, status: %x, "
+            "pipe name size: %u, pipe name: %ls\n",
+            create_operation->pid,
+            create_operation->status,
+            create_operation->pipe_name_size,
+            create_operation->pipe_name);
+}
+
+void printCreateNamedPipeOperation(CreateNamedPipeOperation *create_np_operation) {
+    printf("Create named pipe operation, pid: %u, status: %x, "
+            "pipe name size: %u, pipe name: %ls\n",
+            create_np_operation->pid,
+            create_np_operation->status,
+            create_np_operation->pipe_name_size,
+            create_np_operation->pipe_name);
 }
 
 void printReadOperation(ReadOperation *read_operation) {
@@ -244,6 +358,12 @@ void printWriteOperation(WriteOperation *write_operation) {
 
 void printOperation(const Operation &operation) {
     switch(operation.type) {
+        case OPERATION_CREATE:
+            printCreateOperation(operation.details.create_operation);
+            break;
+        case OPERATION_CREATE_NAMED_PIPE:
+            printCreateNamedPipeOperation(operation.details.create_np_operation);
+            break;
         case OPERATION_READ:
             printReadOperation(operation.details.read_operation);
             break;
@@ -252,14 +372,16 @@ void printOperation(const Operation &operation) {
             break;
         case OPERATION_INVALID:
             printf("Invalid operation\n");
-        default:
-            printf("Placeholder\n");
     }
 }
 
 void cleanup(std::vector<Operation> &operations) {
     for(Operation operation: operations) {
         switch(operation.type) {
+            case OPERATION_CREATE_NAMED_PIPE:
+                delete operation.details.create_np_operation->pipe_name;
+                delete operation.details.create_np_operation;
+                break;
             case OPERATION_CREATE:
                 delete operation.details.create_operation->pipe_name;
                 delete operation.details.create_operation;
@@ -273,6 +395,8 @@ void cleanup(std::vector<Operation> &operations) {
                 delete operation.details.write_operation->pipe_name;
                 delete operation.details.write_operation->buffer;
                 delete operation.details.write_operation;
+                break;
+            case OPERATION_INVALID:
                 break;
         }
     }

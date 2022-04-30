@@ -209,6 +209,98 @@ void AddToChunkBuffer(MessageChunk *chunk, char **buffer_end,
     }
 }
 
+void SendMessageCreate(
+    UNICODE_STRING file_name,
+    HANDLE pid,
+    NTSTATUS status)
+{
+    // ## REMOVE THIS ##
+    if(file_name.Buffer == NULL || wcsstr(file_name.Buffer,
+            L"testing") == NULL) {
+        return;
+    }
+    // #################
+
+    ULONG message_tag = 'cgsM';
+    char *buffer_end;
+    long long buffer_free;
+    MessageType type = MESSAGE_CREATE;
+    MessageChunk *chunk =
+        (MessageChunk*)ExAllocatePoolWithTag(
+            PagedPool, sizeof(MessageChunk), message_tag);
+
+    chunk->message_id = GetNewMessageID();
+    chunk->final_chunk = 0;
+    buffer_end = chunk->buffer;
+
+    AddToChunkBuffer(chunk, &buffer_end, (char*)&type,
+            sizeof(MessageType));
+    AddToChunkBuffer(chunk, &buffer_end, (char*)&pid,
+            sizeof(pid));
+    AddToChunkBuffer(chunk, &buffer_end, (char*)&status,
+            sizeof(status));
+    AddToChunkBuffer(chunk, &buffer_end, (char*)&file_name.Length,
+            sizeof(file_name.Length));
+    AddToChunkBuffer(chunk, &buffer_end, (char*)file_name.Buffer,
+            file_name.Length);
+
+    buffer_free = CHUNK_BUFFER_SIZE -
+        (buffer_end - chunk->buffer);
+    if(buffer_free > 0) {
+        RtlFillMemory(buffer_end, buffer_free, 0);
+    }
+    chunk->final_chunk = 1;
+    SendChunk(chunk);
+
+    ExFreePoolWithTag(chunk, message_tag);
+}
+
+void SendMessageCreateNamedPipe(
+    UNICODE_STRING file_name,
+    HANDLE pid,
+    NTSTATUS status)
+{
+    // ## REMOVE THIS ##
+    if(file_name.Buffer == NULL || wcsstr(file_name.Buffer,
+            L"testing") == NULL) {
+        return;
+    }
+    // #################
+
+    ULONG message_tag = 'pgsM';
+    char *buffer_end;
+    long long buffer_free;
+    MessageType type = MESSAGE_CREATE_NAMED_PIPE;
+    MessageChunk *chunk =
+        (MessageChunk*)ExAllocatePoolWithTag(
+            PagedPool, sizeof(MessageChunk), message_tag);
+
+    chunk->message_id = GetNewMessageID();
+    chunk->final_chunk = 0;
+    buffer_end = chunk->buffer;
+
+    AddToChunkBuffer(chunk, &buffer_end, (char*)&type,
+            sizeof(MessageType));
+    AddToChunkBuffer(chunk, &buffer_end, (char*)&pid,
+            sizeof(pid));
+    AddToChunkBuffer(chunk, &buffer_end, (char*)&status,
+            sizeof(status));
+    AddToChunkBuffer(chunk, &buffer_end, (char*)&file_name.Length,
+            sizeof(file_name.Length));
+    AddToChunkBuffer(chunk, &buffer_end, (char*)file_name.Buffer,
+            file_name.Length);
+
+    buffer_free = CHUNK_BUFFER_SIZE -
+        (buffer_end - chunk->buffer);
+    if(buffer_free > 0) {
+        RtlFillMemory(buffer_end, buffer_free, 0);
+    }
+    chunk->final_chunk = 1;
+    SendChunk(chunk);
+
+    ExFreePoolWithTag(chunk, message_tag);
+}
+
 void SendMessageRead(
     UNICODE_STRING file_name,
     HANDLE pid,
@@ -328,9 +420,18 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationCreate(
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
 
-    DbgPrint("Named pipe create captured: %wZ, status: %x\n",
+    HANDLE pid = PsGetCurrentProcessId();
+
+    DbgPrint("Create captured: %wZ, status: %x, pid %lu",
             FltObjects->FileObject->FileName,
-            Data->IoStatus.Status);
+            Data->IoStatus.Status,
+            pid);
+
+    if(g_client_port) {
+        SendMessageCreate(FltObjects->FileObject->FileName,
+                pid,
+                Data->IoStatus.Status);
+    }
 
     return FLT_POSTOP_FINISHED_PROCESSING;
 }
@@ -346,9 +447,18 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationCreateNamedPipe(
     UNREFERENCED_PARAMETER(CompletionContext);
     UNREFERENCED_PARAMETER(Flags);
 
-    DbgPrint("CreateNamedPipe captured: %wZ, status: %x\n",
-            &FltObjects->FileObject->FileName,
-            Data->IoStatus.Status);
+    HANDLE pid = PsGetCurrentProcessId();
+
+    DbgPrint("Create namd pipe captured: %wZ, status: %x, pid %lu",
+            FltObjects->FileObject->FileName,
+            Data->IoStatus.Status,
+            pid);
+
+    if(g_client_port) {
+        SendMessageCreateNamedPipe(FltObjects->FileObject->FileName,
+                pid,
+                Data->IoStatus.Status);
+    }
 
     return FLT_POSTOP_FINISHED_PROCESSING;
 }
@@ -361,6 +471,7 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationRead(
 {
     UNREFERENCED_PARAMETER(Data);
     UNREFERENCED_PARAMETER(CompletionContext);
+    UNREFERENCED_PARAMETER(Flags);
 
     if(FltObjects->FileObject->DeviceObject->DeviceType !=
             FILE_DEVICE_NAMED_PIPE) {
