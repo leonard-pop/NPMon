@@ -31,22 +31,19 @@ typedef struct {
 typedef struct {
     HANDLE pid;
     NTSTATUS status;
-    USHORT pipe_name_size;
-    wchar_t *pipe_name;
+    char *pipe_name;
 } CreateNamedPipeOperation;
 
 typedef struct {
     HANDLE pid;
     NTSTATUS status;
-    USHORT pipe_name_size;
-    wchar_t *pipe_name;
+    char *pipe_name;
 } CreateOperation;
 
 typedef struct {
     HANDLE pid;
     NTSTATUS status;
-    USHORT pipe_name_size;
-    wchar_t *pipe_name;
+    char *pipe_name;
     ULONG buffer_size;
     unsigned char *buffer;
 } ReadOperation;
@@ -54,8 +51,7 @@ typedef struct {
 typedef struct {
     HANDLE pid;
     NTSTATUS status;
-    USHORT pipe_name_size;
-    wchar_t *pipe_name;
+    char *pipe_name;
     ULONG buffer_size;
     unsigned char *buffer;
 } WriteOperation;
@@ -70,11 +66,11 @@ typedef struct {
     } details;
 } Operation;
 
-volatile sig_atomic_t running = 1;
+volatile sig_atomic_t g_running = 1;
 std::vector<Operation> g_operations;
 
 void stop(int sig) {
-    running = 0;
+    g_running = 0;
     signal(sig, SIG_IGN);
 }
 
@@ -117,14 +113,25 @@ CreateOperation* parseCreateOperation(std::vector<MessageChunk> &chunks) {
         extractFromBufferChunks((unsigned char*)&create_operation->status, chunks,
                 sizeof(create_operation->status), chunk_index, &buffer_pos);
 
-        extractFromBufferChunks((unsigned char*)&create_operation->pipe_name_size,
-                chunks, sizeof(create_operation->pipe_name_size),
+        USHORT wpipe_name_size = 0;
+        size_t pipe_name_size = 0;
+        wchar_t *wpipe_name = nullptr;
+
+        extractFromBufferChunks((unsigned char*)&wpipe_name_size,
+                chunks, sizeof(wpipe_name_size),
                 chunk_index, &buffer_pos);
-        create_operation->pipe_name = new wchar_t[create_operation->pipe_name_size + 1];
-        extractFromBufferChunks((unsigned char*)create_operation->pipe_name,
-                chunks, create_operation->pipe_name_size,
+        wpipe_name = new wchar_t[wpipe_name_size + 1];
+        extractFromBufferChunks((unsigned char*)wpipe_name,
+                chunks, wpipe_name_size,
                 chunk_index, &buffer_pos);
-        create_operation->pipe_name[create_operation->pipe_name_size - 1] = L'\0';
+        wpipe_name[wpipe_name_size / sizeof(wchar_t)] = L'\0';
+
+        create_operation->pipe_name =
+            new char[wpipe_name_size + sizeof(wchar_t)];
+        wcstombs_s(&pipe_name_size, create_operation->pipe_name,
+                wpipe_name_size, wpipe_name, wpipe_name_size);
+
+        delete wpipe_name;
     } catch(std::exception) {
         if(create_operation->pipe_name != nullptr) {
             delete create_operation->pipe_name;
@@ -150,14 +157,25 @@ CreateNamedPipeOperation* parseCreateNamedPipeOperation(std::vector<MessageChunk
         extractFromBufferChunks((unsigned char*)&create_np_operation->status, chunks,
                 sizeof(create_np_operation->status), chunk_index, &buffer_pos);
 
-        extractFromBufferChunks((unsigned char*)&create_np_operation->pipe_name_size,
-                chunks, sizeof(create_np_operation->pipe_name_size),
+        USHORT wpipe_name_size = 0;
+        size_t pipe_name_size = 0;
+        wchar_t *wpipe_name = nullptr;
+
+        extractFromBufferChunks((unsigned char*)&wpipe_name_size,
+                chunks, sizeof(wpipe_name_size),
                 chunk_index, &buffer_pos);
-        create_np_operation->pipe_name = new wchar_t[create_np_operation->pipe_name_size + 1];
-        extractFromBufferChunks((unsigned char*)create_np_operation->pipe_name,
-                chunks, create_np_operation->pipe_name_size,
+        wpipe_name = new wchar_t[wpipe_name_size + 1];
+        extractFromBufferChunks((unsigned char*)wpipe_name,
+                chunks, wpipe_name_size,
                 chunk_index, &buffer_pos);
-        create_np_operation->pipe_name[create_np_operation->pipe_name_size - 1] = L'\0';
+        wpipe_name[wpipe_name_size / sizeof(wchar_t)] = L'\0';
+
+        create_np_operation->pipe_name =
+            new char[wpipe_name_size + sizeof(wchar_t)];
+        wcstombs_s(&pipe_name_size, create_np_operation->pipe_name,
+                wpipe_name_size, wpipe_name, wpipe_name_size);
+
+        delete wpipe_name;
     } catch(std::exception) {
         if(create_np_operation->pipe_name != nullptr) {
             delete create_np_operation->pipe_name;
@@ -184,14 +202,25 @@ ReadOperation* parseReadOperation(std::vector<MessageChunk> &chunks) {
         extractFromBufferChunks((unsigned char*)&read_operation->status, chunks,
                 sizeof(read_operation->status), chunk_index, &buffer_pos);
 
-        extractFromBufferChunks((unsigned char*)&read_operation->pipe_name_size,
-                chunks, sizeof(read_operation->pipe_name_size),
+        USHORT wpipe_name_size = 0;
+        size_t pipe_name_size = 0;
+        wchar_t *wpipe_name = nullptr;
+
+        extractFromBufferChunks((unsigned char*)&wpipe_name_size,
+                chunks, sizeof(wpipe_name_size),
                 chunk_index, &buffer_pos);
-        read_operation->pipe_name = new wchar_t[read_operation->pipe_name_size + 1];
-        extractFromBufferChunks((unsigned char*)read_operation->pipe_name,
-                chunks, read_operation->pipe_name_size,
+        wpipe_name = new wchar_t[wpipe_name_size + 1];
+        extractFromBufferChunks((unsigned char*)wpipe_name,
+                chunks, wpipe_name_size,
                 chunk_index, &buffer_pos);
-        read_operation->pipe_name[read_operation->pipe_name_size - 1] = L'\0';
+        wpipe_name[wpipe_name_size / sizeof(wchar_t)] = L'\0';
+
+        read_operation->pipe_name =
+            new char[wpipe_name_size + sizeof(wchar_t)];
+        wcstombs_s(&pipe_name_size, read_operation->pipe_name,
+                wpipe_name_size, wpipe_name, wpipe_name_size);
+
+        delete wpipe_name;
 
         extractFromBufferChunks((unsigned char*)&read_operation->buffer_size,
                 chunks, sizeof(read_operation->buffer_size),
@@ -229,14 +258,25 @@ WriteOperation* parseWriteOperation(std::vector<MessageChunk> &chunks) {
         extractFromBufferChunks((unsigned char*)&write_operation->status, chunks,
                 sizeof(write_operation->status), chunk_index, &buffer_pos);
 
-        extractFromBufferChunks((unsigned char*)&write_operation->pipe_name_size,
-                chunks, sizeof(write_operation->pipe_name_size),
+        USHORT wpipe_name_size = 0;
+        size_t pipe_name_size = 0;
+        wchar_t *wpipe_name = nullptr;
+
+        extractFromBufferChunks((unsigned char*)&wpipe_name_size,
+                chunks, sizeof(wpipe_name_size),
                 chunk_index, &buffer_pos);
-        write_operation->pipe_name = new wchar_t[write_operation->pipe_name_size + 1];
-        extractFromBufferChunks((unsigned char*)write_operation->pipe_name,
-                chunks, write_operation->pipe_name_size,
+        wpipe_name = new wchar_t[wpipe_name_size + 1];
+        extractFromBufferChunks((unsigned char*)wpipe_name,
+                chunks, wpipe_name_size,
                 chunk_index, &buffer_pos);
-        write_operation->pipe_name[write_operation->pipe_name_size - 1] = L'\0';
+        wpipe_name[wpipe_name_size / sizeof(wchar_t)] = L'\0';
+
+        write_operation->pipe_name =
+            new char[wpipe_name_size + sizeof(wchar_t)];
+        wcstombs_s(&pipe_name_size, write_operation->pipe_name,
+                wpipe_name_size, wpipe_name, wpipe_name_size);
+
+        delete wpipe_name;
 
         extractFromBufferChunks((unsigned char*)&write_operation->buffer_size,
                 chunks, sizeof(write_operation->buffer_size),
@@ -316,29 +356,26 @@ Operation parseMessageChunks(std::vector<MessageChunk> &chunks) {
 
 void printCreateOperation(CreateOperation *create_operation) {
     printf("Create operation, pid: %u, status: %x, "
-            "pipe name size: %u, pipe name: %ls\n",
+            "pipe name: %s\n",
             create_operation->pid,
             create_operation->status,
-            create_operation->pipe_name_size,
             create_operation->pipe_name);
 }
 
 void printCreateNamedPipeOperation(CreateNamedPipeOperation *create_np_operation) {
     printf("Create named pipe operation, pid: %u, status: %x, "
-            "pipe name size: %u, pipe name: %ls\n",
+            "pipe name: %s\n",
             create_np_operation->pid,
             create_np_operation->status,
-            create_np_operation->pipe_name_size,
             create_np_operation->pipe_name);
 }
 
 void printReadOperation(ReadOperation *read_operation) {
     printf("Read operation, pid: %u, status: %x, "
-            "pipe name size: %u, pipe name: %ls, "
+            "pipe name: %s, "
             "buffer size: %u, buffer: ",
             read_operation->pid,
             read_operation->status,
-            read_operation->pipe_name_size,
             read_operation->pipe_name,
             read_operation->buffer_size);
 
@@ -351,11 +388,10 @@ void printReadOperation(ReadOperation *read_operation) {
 
 void printWriteOperation(WriteOperation *write_operation) {
     printf("Write operation, pid: %u, status: %x, "
-            "pipe name size: %u, pipe name: %ls, "
+            "pipe name: %s, "
             "buffer size: %u, buffer: ",
             write_operation->pid,
             write_operation->status,
-            write_operation->pipe_name_size,
             write_operation->pipe_name,
             write_operation->buffer_size);
 
@@ -430,7 +466,7 @@ void handleCommunication() {
 
     printf("[*] Success\n");
 
-    while(running) {
+    while(g_running) {
         result = FilterGetMessage(client_port,
                 &message.header,
                 sizeof(Message),
@@ -438,7 +474,7 @@ void handleCommunication() {
 
         if(result != S_OK) {
             printf("[!!!] Error getting message: %lx\n", result);
-            running = 0;
+            g_running = 0;
         } else {
             chunk_map[message.chunk.message_id].push_back(message.chunk);
             printf("[*] Got chunk\n");
@@ -457,12 +493,10 @@ void handleCommunication() {
     CloseHandle(client_port);
 }
 
-// Data
 static ID3D10Device*            g_pd3dDevice = NULL;
 static IDXGISwapChain*          g_pSwapChain = NULL;
 static ID3D10RenderTargetView*  g_mainRenderTargetView = NULL;
 
-// Forward declarations of helper functions
 bool CreateDeviceD3D(HWND hWnd);
 void CleanupDeviceD3D();
 void CreateRenderTarget();
@@ -470,13 +504,11 @@ void CleanupRenderTarget();
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 void renderGUI() {
-    // Create application window
     ImGui_ImplWin32_EnableDpiAwareness();
     WNDCLASSEX wc = { sizeof(WNDCLASSEX), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(NULL), NULL, NULL, NULL, NULL, _T("ImGui Example"), NULL };
     ::RegisterClassEx(&wc);
-    HWND hwnd = ::CreateWindow(wc.lpszClassName, _T("Dear ImGui DirectX10 Example"), WS_OVERLAPPEDWINDOW, 100, 100, 1280, 800, NULL, NULL, wc.hInstance, NULL);
+    HWND hwnd = ::CreateWindow(wc.lpszClassName, _T("NPMon"), WS_OVERLAPPEDWINDOW, 100, 100, 1280, 800, NULL, NULL, wc.hInstance, NULL);
 
-    // Initialize Direct3D
     if (!CreateDeviceD3D(hwnd))
     {
         CleanupDeviceD3D();
@@ -485,29 +517,21 @@ void renderGUI() {
         return;
     }
 
-    // Show the window
     ::ShowWindow(hwnd, SW_SHOWDEFAULT);
     ::UpdateWindow(hwnd);
 
-    // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
-    // Setup Dear ImGui style
     ImGui::StyleColorsDark();
-    //ImGui::StyleColorsClassic();
 
-    // Setup Platform/Renderer backends
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX10_Init(g_pd3dDevice);
 
-    // Our state
-    bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
-    // Main loop
     bool done = false;
     while (!done)
     {
@@ -527,33 +551,30 @@ void renderGUI() {
         ImGui::NewFrame();
 
         {
-            static float f = 0.0f;
-            static int counter = 0;
+            ImGui::Begin("NPMon");
 
-            ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
 
-            ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-            ImGui::Checkbox("Another Window", &show_another_window);
+            static ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg;
 
-            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-            ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
+            for(Operation operation: g_operations) {
+                switch(operation.type) {
+                    case OPERATION_CREATE_NAMED_PIPE:
+                        ImGui::Selectable(operation.details.create_np_operation->pipe_name);
+                        break;
+                    case OPERATION_CREATE:
+                        ImGui::Selectable(operation.details.create_operation->pipe_name);
+                        break;
+                    case OPERATION_READ:
+                        ImGui::Selectable(operation.details.read_operation->pipe_name);
+                        break;
+                    case OPERATION_WRITE:
+                        ImGui::Selectable(operation.details.write_operation->pipe_name);
+                        break;
+                    case OPERATION_INVALID:
+                        break;
+                }
+            }
 
-            if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-                counter++;
-            ImGui::SameLine();
-            ImGui::Text("counter = %d", counter);
-
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-            ImGui::End();
-        }
-
-        // 3. Show another simple window.
-        if (show_another_window)
-        {
-            ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-            ImGui::Text("Hello from another window!");
-            if (ImGui::Button("Close Me"))
-                show_another_window = false;
             ImGui::End();
         }
 
@@ -600,7 +621,9 @@ bool CreateDeviceD3D(HWND hWnd)
 
     UINT createDeviceFlags = 0;
     //createDeviceFlags |= D3D10_CREATE_DEVICE_DEBUG;
-    HRESULT result = D3D10CreateDeviceAndSwapChain(NULL, D3D10_DRIVER_TYPE_WARP, NULL, createDeviceFlags, D3D10_SDK_VERSION, &sd, &g_pSwapChain, &g_pd3dDevice);
+    HRESULT result = D3D10CreateDeviceAndSwapChain(NULL,
+            D3D10_DRIVER_TYPE_WARP, NULL, createDeviceFlags,
+            D3D10_SDK_VERSION, &sd, &g_pSwapChain, &g_pd3dDevice);
     if(result != S_OK) {
         fprintf(stderr, "Error: %x\n", result);
         return false;
@@ -613,8 +636,14 @@ bool CreateDeviceD3D(HWND hWnd)
 void CleanupDeviceD3D()
 {
     CleanupRenderTarget();
-    if (g_pSwapChain) { g_pSwapChain->Release(); g_pSwapChain = NULL; }
-    if (g_pd3dDevice) { g_pd3dDevice->Release(); g_pd3dDevice = NULL; }
+    if(g_pSwapChain) {
+        g_pSwapChain->Release();
+        g_pSwapChain = NULL;
+    }
+    if(g_pd3dDevice) {
+        g_pd3dDevice->Release();
+        g_pd3dDevice = NULL;
+    }
 }
 
 void CreateRenderTarget()
@@ -627,11 +656,14 @@ void CreateRenderTarget()
 
 void CleanupRenderTarget()
 {
-    if (g_mainRenderTargetView) { g_mainRenderTargetView->Release(); g_mainRenderTargetView = NULL; }
+    if(g_mainRenderTargetView) {
+        g_mainRenderTargetView->Release();
+        g_mainRenderTargetView = NULL;
+    }
 }
 
-// Forward declare message handler from imgui_impl_win32.cpp
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(
+        HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 // Win32 message handler
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -645,7 +677,8 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
         if (g_pd3dDevice != NULL && wParam != SIZE_MINIMIZED)
         {
             CleanupRenderTarget();
-            g_pSwapChain->ResizeBuffers(0, (UINT)LOWORD(lParam), (UINT)HIWORD(lParam), DXGI_FORMAT_UNKNOWN, 0);
+            g_pSwapChain->ResizeBuffers(0, (UINT)LOWORD(lParam),
+                    (UINT)HIWORD(lParam), DXGI_FORMAT_UNKNOWN, 0);
             CreateRenderTarget();
         }
         return 0;
@@ -666,9 +699,18 @@ int main(void) {
 
     communication_thread = std::thread(handleCommunication);
 
+    CreateNamedPipeOperation testing_create_np_op;
+    testing_create_np_op.pid = (HANDLE)123;
+    testing_create_np_op.pipe_name = "/pipe-name";
+    testing_create_np_op.status = 0;
+    Operation testing_operation;
+    testing_operation.type = OPERATION_CREATE_NAMED_PIPE;
+    testing_operation.details.create_np_operation = &testing_create_np_op;
+    g_operations.push_back(testing_operation);
+
     renderGUI();
 
-    running = 0;
+    g_running = 0;
     communication_thread.join();
 
     printf("[*] Cleanup\n");
