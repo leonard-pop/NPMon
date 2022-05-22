@@ -16,6 +16,11 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationCreateNamedPipe(
     _In_ PVOID CompletionContext,
     _In_ FLT_POST_OPERATION_FLAGS Flags);
 
+FLT_PREOP_CALLBACK_STATUS FLTAPI PreOperationRead(
+     _Inout_ PFLT_CALLBACK_DATA Data,
+     _In_ PCFLT_RELATED_OBJECTS FltObjects,
+     _Flt_CompletionContext_Outptr_ PVOID* CompletionContext);
+
 FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationRead(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
@@ -23,6 +28,12 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationRead(
     _In_ FLT_POST_OPERATION_FLAGS Flags);
 
 FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationWrite(
+    _Inout_ PFLT_CALLBACK_DATA Data,
+    _In_ PCFLT_RELATED_OBJECTS FltObjects,
+    _In_ PVOID CompletionContext,
+    _In_ FLT_POST_OPERATION_FLAGS Flags);
+
+FLT_POSTOP_CALLBACK_STATUS SendReadMessageWhenSafe (
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_ PVOID CompletionContext,
@@ -76,7 +87,7 @@ CONST FLT_OPERATION_REGISTRATION g_callbacks[] =
     {
         IRP_MJ_READ,
         0,
-        0,
+        PreOperationRead,
         PostOperationRead,
     },
     {
@@ -152,7 +163,7 @@ NTSTATUS DriverEntry(
         goto done;
     }
 
-    ExInitializeFastMutex(&g_message_id_mutex);
+    KeInitializeGuardedMutex(&g_message_id_mutex);
 
 done:
     if(port_security_descriptor)
@@ -183,6 +194,15 @@ ULONG GetNewMessageID() {
 }
 
 void SendChunk(MessageChunk *chunk) {
+    //LARGE_INTEGER timeout = { -1000 };
+    //LARGE_INTEGER timeout = { 100000 };
+
+    /*
+    LARGE_INTEGER timeout = { -100000 };
+    FltSendMessage(g_minifilter_handle, &g_client_port, chunk,
+            sizeof(MessageChunk), NULL, NULL, &timeout);
+    */
+
     FltSendMessage(g_minifilter_handle, &g_client_port, chunk,
             sizeof(MessageChunk), NULL, NULL, NULL);
 }
@@ -193,7 +213,11 @@ void AddToChunkBuffer(MessageChunk *chunk, char **buffer_end,
         ((*buffer_end) - chunk->buffer);
 
     while(buffer_free < size) {
-        RtlCopyMemory(*buffer_end, data, buffer_free);
+        try {
+            RtlCopyMemory(*buffer_end, data, buffer_free);
+        } except(EXCEPTION_EXECUTE_HANDLER) {
+            DbgPrint("###Exception writing to buffer, buffer_free###\n");
+        }
 
         SendChunk(chunk);
 
@@ -204,7 +228,11 @@ void AddToChunkBuffer(MessageChunk *chunk, char **buffer_end,
     }
 
     if(size) {
-        RtlCopyMemory(*buffer_end, data, size);
+        try {
+            RtlCopyMemory(*buffer_end, data, size);
+        } except(EXCEPTION_EXECUTE_HANDLER) {
+            DbgPrint("###Exception writing to buffer, size###\n");
+        }
         *buffer_end += size;
     }
 }
@@ -411,9 +439,15 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationCreate(
     _In_ PVOID CompletionContext,
     _In_ FLT_POST_OPERATION_FLAGS Flags)
 {
-    UNREFERENCED_PARAMETER(FltObjects);
     UNREFERENCED_PARAMETER(CompletionContext);
     UNREFERENCED_PARAMETER(Flags);
+    // ## REMOVE THIS ##
+    if(FltObjects->FileObject->FileName.Buffer == NULL ||
+            wcsstr(FltObjects->FileObject->FileName.Buffer,
+            L"testing") == NULL) {
+        return FLT_POSTOP_FINISHED_PROCESSING;
+    }
+    // #################
 
     if(FltObjects->FileObject->DeviceObject->DeviceType !=
             FILE_DEVICE_NAMED_PIPE) {
@@ -422,7 +456,7 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationCreate(
 
     HANDLE pid = PsGetCurrentProcessId();
 
-    DbgPrint("Create captured: %wZ, status: %x, pid %lu",
+    DbgPrint("Create captured: %wZ, status: %x, pid %lu\n",
             FltObjects->FileObject->FileName,
             Data->IoStatus.Status,
             pid);
@@ -442,14 +476,19 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationCreateNamedPipe(
     _In_ PVOID CompletionContext,
     _In_ FLT_POST_OPERATION_FLAGS Flags)
 {
-    UNREFERENCED_PARAMETER(Data);
-    UNREFERENCED_PARAMETER(FltObjects);
     UNREFERENCED_PARAMETER(CompletionContext);
     UNREFERENCED_PARAMETER(Flags);
+    // ## REMOVE THIS ##
+    if(FltObjects->FileObject->FileName.Buffer == NULL ||
+            wcsstr(FltObjects->FileObject->FileName.Buffer,
+            L"testing") == NULL) {
+        return FLT_POSTOP_FINISHED_PROCESSING;
+    }
+    // #################
 
     HANDLE pid = PsGetCurrentProcessId();
 
-    DbgPrint("Create namd pipe captured: %wZ, status: %x, pid %lu",
+    DbgPrint("Create namd pipe captured: %wZ, status: %x, pid %lu\n",
             FltObjects->FileObject->FileName,
             Data->IoStatus.Status,
             pid);
@@ -463,43 +502,140 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationCreateNamedPipe(
     return FLT_POSTOP_FINISHED_PROCESSING;
 }
 
-FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationRead(
-    _Inout_ PFLT_CALLBACK_DATA Data,
-    _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _In_ PVOID CompletionContext,
-    _In_ FLT_POST_OPERATION_FLAGS Flags)
+FLT_PREOP_CALLBACK_STATUS FLTAPI PreOperationRead(
+     _Inout_ PFLT_CALLBACK_DATA Data,
+     _In_ PCFLT_RELATED_OBJECTS FltObjects,
+     _Flt_CompletionContext_Outptr_ PVOID* CompletionContext)
 {
-    UNREFERENCED_PARAMETER(Data);
     UNREFERENCED_PARAMETER(CompletionContext);
-    UNREFERENCED_PARAMETER(Flags);
+    // ## REMOVE THIS ##
+    if(FltObjects->FileObject->FileName.Buffer == NULL ||
+            wcsstr(FltObjects->FileObject->FileName.Buffer,
+            L"testing") == NULL) {
+        return FLT_POSTOP_FINISHED_PROCESSING;
+    }
+    // #################
 
     if(FltObjects->FileObject->DeviceObject->DeviceType !=
             FILE_DEVICE_NAMED_PIPE) {
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
 
-    DbgPrint("Named pipe read captured: %wZ, status: %x\n",
-            FltObjects->FileObject->FileName,
-            Data->IoStatus.Status);
-
-    ULONG read_length = Data->Iopb->Parameters.Read.Length;
+    ULONG read_length_requested = Data->Iopb->Parameters.Read.Length,
+        read_length_got = Data->IoStatus.Information;
     char* read_buffer = (char*)Data->Iopb->Parameters.Read.ReadBuffer;
     HANDLE pid = PsGetCurrentProcessId();
 
-    DbgPrint("Named pipe read captured: %wZ, status: %x, pid %lu, length: %lu, buffer: %.*wZ\n",
+    DbgPrint("Preop Named pipe read captured: %wZ, status: %x, pid %lu, requested: %lu, got: %u, irql: %x\n",
             FltObjects->FileObject->FileName,
             Data->IoStatus.Status,
             pid,
-            read_length,
-            read_length, read_buffer);
+            read_length_requested,
+            read_length_got,
+            KeGetCurrentIrql());
+
+    /*
+    if(g_client_port) {
+        SendMessageRead(FltObjects->FileObject->FileName,
+                pid,
+                Data->IoStatus.Status,
+                read_length_got,
+                read_buffer);
+    }
+    */
+
+    return FLT_PREOP_SUCCESS_WITH_CALLBACK;
+}
+
+FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationRead(
+    _Inout_ PFLT_CALLBACK_DATA Data,
+    _In_ PCFLT_RELATED_OBJECTS FltObjects,
+    _In_ PVOID CompletionContext,
+    _In_ FLT_POST_OPERATION_FLAGS Flags)
+{
+    UNREFERENCED_PARAMETER(CompletionContext);
+    UNREFERENCED_PARAMETER(Flags);
+    // ## REMOVE THIS ##
+    if(FltObjects->FileObject->FileName.Buffer == NULL ||
+            wcsstr(FltObjects->FileObject->FileName.Buffer,
+            L"testing") == NULL) {
+        return FLT_POSTOP_FINISHED_PROCESSING;
+    }
+    // #################
+
+    if(FltObjects->FileObject->DeviceObject->DeviceType !=
+            FILE_DEVICE_NAMED_PIPE) {
+        return FLT_POSTOP_FINISHED_PROCESSING;
+    }
+
+    ULONG read_length_requested = Data->Iopb->Parameters.Read.Length,
+        read_length_got = Data->IoStatus.Information;
+    //char* read_buffer = (char*)Data->Iopb->Parameters.Read.ReadBuffer;
+    HANDLE pid = PsGetCurrentProcessId();
+
+    DbgPrint("Postop Named pipe read captured: %wZ, status: %x, pid %lu, requested: %lu, got: %u, irql: %x\n",
+            FltObjects->FileObject->FileName,
+            Data->IoStatus.Status,
+            pid,
+            read_length_requested,
+            read_length_got,
+            KeGetCurrentIrql());
+
+    FLT_POSTOP_CALLBACK_STATUS retValue = FLT_POSTOP_FINISHED_PROCESSING;
 
     if(g_client_port) {
         SendMessageRead(FltObjects->FileObject->FileName,
                 pid,
                 Data->IoStatus.Status,
-                read_length,
-                read_buffer);
+                read_length_got,
+                NULL);
+
+        /*
+        if(!FltDoCompletionProcessingWhenSafe(Data,
+                FltObjects,
+                CompletionContext,
+                Flags,
+                SendReadMessageWhenSafe,
+                &retValue)) {
+            DbgPrint("Failed to do completion processing when safe\n");
+        }
+        */
     }
+
+    return retValue;
+}
+
+FLT_POSTOP_CALLBACK_STATUS SendReadMessageWhenSafe (
+    _Inout_ PFLT_CALLBACK_DATA Data,
+    _In_ PCFLT_RELATED_OBJECTS FltObjects,
+    _In_ PVOID CompletionContext,
+    _In_ FLT_POST_OPERATION_FLAGS Flags) {
+    UNREFERENCED_PARAMETER(CompletionContext);
+    UNREFERENCED_PARAMETER(Flags);
+
+    NTSTATUS status = FltLockUserBuffer( Data );
+    ULONG read_length_got = Data->IoStatus.Information;
+    char* read_buffer = (char*)Data->Iopb->Parameters.Read.ReadBuffer;
+    HANDLE pid = PsGetCurrentProcessId();
+
+    if(!NT_SUCCESS(status)) {
+        DbgPrint("Failed to lock user buffer\n");
+        return FLT_POSTOP_FINISHED_PROCESSING;
+    }
+
+    read_buffer = (char*) MmGetSystemAddressForMdlSafe(Data->Iopb->Parameters.Read.MdlAddress,
+        NormalPagePriority | MdlMappingNoExecute );
+
+    if(read_buffer == NULL) {
+        DbgPrint("Failed to get system address for mdl\n");
+        return FLT_POSTOP_FINISHED_PROCESSING;
+    }
+
+    SendMessageRead(FltObjects->FileObject->FileName,
+            pid,
+            Data->IoStatus.Status,
+            read_length_got,
+            read_buffer);
 
     return FLT_POSTOP_FINISHED_PROCESSING;
 }
@@ -510,32 +646,38 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationWrite(
     _In_ PVOID CompletionContext,
     _In_ FLT_POST_OPERATION_FLAGS Flags)
 {
-    UNREFERENCED_PARAMETER(Data);
-    UNREFERENCED_PARAMETER(FltObjects);
     UNREFERENCED_PARAMETER(CompletionContext);
     UNREFERENCED_PARAMETER(Flags);
+    // ## REMOVE THIS ##
+    if(FltObjects->FileObject->FileName.Buffer == NULL ||
+            wcsstr(FltObjects->FileObject->FileName.Buffer,
+            L"testing") == NULL) {
+        return FLT_POSTOP_FINISHED_PROCESSING;
+    }
+    // #################
 
     if(FltObjects->FileObject->DeviceObject->DeviceType !=
             FILE_DEVICE_NAMED_PIPE) {
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
 
-    ULONG write_length = Data->Iopb->Parameters.Write.Length;
+    ULONG write_length_requested = Data->Iopb->Parameters.Write.Length,
+        write_length_got = Data->IoStatus.Information;
     char* write_buffer = (char*)Data->Iopb->Parameters.Write.WriteBuffer;
     HANDLE pid = PsGetCurrentProcessId();
 
-    DbgPrint("Named pipe write captured: %wZ, status: %x, pid %lu, length: %lu, buffer: %.*wZ\n",
+    DbgPrint("Named pipe write captured: %wZ, status: %x, pid %lu, requested: %lu, got: %lu\n",
             FltObjects->FileObject->FileName,
             Data->IoStatus.Status,
             pid,
-            write_length,
-            write_length, write_buffer);
+            write_length_requested,
+            write_length_got);
 
     if(g_client_port) {
         SendMessageWrite(FltObjects->FileObject->FileName,
                 pid,
                 Data->IoStatus.Status,
-                write_length,
+                write_length_got,
                 write_buffer);
     }
 
@@ -623,7 +765,7 @@ void ClientDisconnectedCallback(
 {
     UNREFERENCED_PARAMETER(Cookie);
 
-    DbgPrint("Client disconnecting: 0x%p", g_client_port);
+    DbgPrint("Client disconnecting: 0x%p\n", g_client_port);
 
     FltCloseClientPort(g_minifilter_handle, &g_client_port);
     g_client_port = NULL;
