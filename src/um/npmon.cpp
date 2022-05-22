@@ -16,6 +16,8 @@
 
 #include "commondefs.h"
 
+#define BUFFER_COLUMNS 32
+
 typedef enum _OperationType {
     OPERATION_CREATE, OPERATION_CREATE_NAMED_PIPE, OPERATION_READ,
     OPERATION_WRITE, OPERATION_INVALID
@@ -106,6 +108,7 @@ CreateOperation* parseCreateOperation(std::vector<MessageChunk> &chunks) {
     buffer_pos = chunks[chunk_index].buffer + sizeof(MessageType);
 
     create_operation->pipe_name = nullptr;
+    wchar_t *wpipe_name = nullptr;
 
     try {
         extractFromBufferChunks((unsigned char*)&create_operation->pid, chunks,
@@ -115,7 +118,6 @@ CreateOperation* parseCreateOperation(std::vector<MessageChunk> &chunks) {
 
         USHORT wpipe_name_size = 0;
         size_t pipe_name_size = 0;
-        wchar_t *wpipe_name = nullptr;
 
         extractFromBufferChunks((unsigned char*)&wpipe_name_size,
                 chunks, sizeof(wpipe_name_size),
@@ -136,6 +138,9 @@ CreateOperation* parseCreateOperation(std::vector<MessageChunk> &chunks) {
         if(create_operation->pipe_name != nullptr) {
             delete create_operation->pipe_name;
         }
+        if(wpipe_name != nullptr) {
+            delete wpipe_name;
+        }
 
         return nullptr;
     }
@@ -150,6 +155,7 @@ CreateNamedPipeOperation* parseCreateNamedPipeOperation(std::vector<MessageChunk
     buffer_pos = chunks[chunk_index].buffer + sizeof(MessageType);
 
     create_np_operation->pipe_name = nullptr;
+    wchar_t *wpipe_name = nullptr;
 
     try {
         extractFromBufferChunks((unsigned char*)&create_np_operation->pid, chunks,
@@ -159,7 +165,6 @@ CreateNamedPipeOperation* parseCreateNamedPipeOperation(std::vector<MessageChunk
 
         USHORT wpipe_name_size = 0;
         size_t pipe_name_size = 0;
-        wchar_t *wpipe_name = nullptr;
 
         extractFromBufferChunks((unsigned char*)&wpipe_name_size,
                 chunks, sizeof(wpipe_name_size),
@@ -180,6 +185,9 @@ CreateNamedPipeOperation* parseCreateNamedPipeOperation(std::vector<MessageChunk
         if(create_np_operation->pipe_name != nullptr) {
             delete create_np_operation->pipe_name;
         }
+        if(wpipe_name != nullptr) {
+            delete wpipe_name;
+        }
 
         return nullptr;
     }
@@ -195,6 +203,7 @@ ReadOperation* parseReadOperation(std::vector<MessageChunk> &chunks) {
 
     read_operation->pipe_name = nullptr;
     read_operation->buffer = nullptr;
+    wchar_t *wpipe_name = nullptr;
 
     try {
         extractFromBufferChunks((unsigned char*)&read_operation->pid, chunks,
@@ -204,7 +213,6 @@ ReadOperation* parseReadOperation(std::vector<MessageChunk> &chunks) {
 
         USHORT wpipe_name_size = 0;
         size_t pipe_name_size = 0;
-        wchar_t *wpipe_name = nullptr;
 
         extractFromBufferChunks((unsigned char*)&wpipe_name_size,
                 chunks, sizeof(wpipe_name_size),
@@ -233,6 +241,9 @@ ReadOperation* parseReadOperation(std::vector<MessageChunk> &chunks) {
         if(read_operation->pipe_name != nullptr) {
             delete read_operation->pipe_name;
         }
+        if(wpipe_name != nullptr) {
+            delete wpipe_name;
+        }
         if(read_operation->buffer != nullptr) {
             delete read_operation->buffer;
         }
@@ -251,6 +262,7 @@ WriteOperation* parseWriteOperation(std::vector<MessageChunk> &chunks) {
 
     write_operation->pipe_name = nullptr;
     write_operation->buffer = nullptr;
+    wchar_t *wpipe_name = nullptr;
 
     try {
         extractFromBufferChunks((unsigned char*)&write_operation->pid, chunks,
@@ -260,7 +272,6 @@ WriteOperation* parseWriteOperation(std::vector<MessageChunk> &chunks) {
 
         USHORT wpipe_name_size = 0;
         size_t pipe_name_size = 0;
-        wchar_t *wpipe_name = nullptr;
 
         extractFromBufferChunks((unsigned char*)&wpipe_name_size,
                 chunks, sizeof(wpipe_name_size),
@@ -288,6 +299,9 @@ WriteOperation* parseWriteOperation(std::vector<MessageChunk> &chunks) {
     } catch(std::exception) {
         if(write_operation->pipe_name != nullptr) {
             delete write_operation->pipe_name;
+        }
+        if(wpipe_name != nullptr) {
+            delete wpipe_name;
         }
         if(write_operation->buffer != nullptr) {
             delete write_operation->buffer;
@@ -379,9 +393,11 @@ void printReadOperation(ReadOperation *read_operation) {
             read_operation->pipe_name,
             read_operation->buffer_size);
 
+    /*
     for(unsigned int i = 0; i < read_operation->buffer_size; i++) {
         printf("%02X", read_operation->buffer[i]);
     }
+    */
 
     printf("\n");
 }
@@ -493,6 +509,32 @@ void handleCommunication() {
     CloseHandle(client_port);
 }
 
+void showBytes(ULONG size, unsigned char *buffer) {
+    ULONG buffer_pos = 0, line_pos = 0;
+
+    while(buffer_pos < size) {
+        line_pos = 0;
+
+        while(line_pos < BUFFER_COLUMNS
+                && buffer_pos + line_pos < size) {
+            if(line_pos) {
+                ImGui::SameLine();
+            }
+
+            ImGui::Text("%02X", buffer[buffer_pos + line_pos]);
+
+            if((line_pos + 1) % 8 == 0) {
+                ImGui::SameLine();
+                ImGui::Text("");
+            }
+
+            line_pos++;
+        }
+
+        buffer_pos += line_pos;
+    }
+}
+
 static ID3D10Device*            g_pd3dDevice = NULL;
 static IDXGISwapChain*          g_pSwapChain = NULL;
 static ID3D10RenderTargetView*  g_mainRenderTargetView = NULL;
@@ -554,25 +596,81 @@ void renderGUI() {
             ImGui::Begin("NPMon");
 
 
-            static ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg;
+            static ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY;
+            char label[MAX_PATH + 100];
 
-            for(Operation operation: g_operations) {
-                switch(operation.type) {
-                    case OPERATION_CREATE_NAMED_PIPE:
-                        ImGui::Selectable(operation.details.create_np_operation->pipe_name);
-                        break;
-                    case OPERATION_CREATE:
-                        ImGui::Selectable(operation.details.create_operation->pipe_name);
-                        break;
-                    case OPERATION_READ:
-                        ImGui::Selectable(operation.details.read_operation->pipe_name);
-                        break;
-                    case OPERATION_WRITE:
-                        ImGui::Selectable(operation.details.write_operation->pipe_name);
-                        break;
-                    case OPERATION_INVALID:
-                        break;
+            if(ImGui::BeginTable("operations_table", 1, flags)) {
+                for(int i = 0; i < g_operations.size(); i++) {
+                    ImGui::TableNextColumn();
+                    switch(g_operations[i].type) {
+                        case OPERATION_CREATE_NAMED_PIPE:
+                            sprintf(label, "PID: %u", g_operations[i].details.create_np_operation->pid);
+                            ImGui::Text(label);
+
+                            ImGui::SameLine();
+                            ImGui::Text("Type: create named pipe");
+
+                            ImGui::SameLine();
+                            sprintf(label, "Status: %x", g_operations[i].details.create_np_operation->status);
+                            ImGui::Text(label);
+
+                            ImGui::SameLine();
+                            sprintf(label, "Name: %s", g_operations[i].details.create_np_operation->pipe_name);
+                            ImGui::Text(label);
+                            break;
+                        case OPERATION_CREATE:
+                            sprintf(label, "PID: %u", g_operations[i].details.create_operation->pid);
+                            ImGui::Text(label);
+
+                            ImGui::SameLine();
+                            ImGui::Text("Type: create file");
+
+                            ImGui::SameLine();
+                            sprintf(label, "Status: %x", g_operations[i].details.create_operation->status);
+                            ImGui::Text(label);
+
+                            ImGui::SameLine();
+                            sprintf(label, "Name: %s", g_operations[i].details.create_operation->pipe_name);
+                            ImGui::Text(label);
+                            break;
+                        case OPERATION_READ:
+                            sprintf(label, "PID: %u", g_operations[i].details.read_operation->pid);
+                            ImGui::Text(label);
+
+                            ImGui::SameLine();
+                            ImGui::Text("Type: read");
+
+                            ImGui::SameLine();
+                            sprintf(label, "Status: %x", g_operations[i].details.read_operation->status);
+                            ImGui::Text(label);
+
+                            ImGui::SameLine();
+                            sprintf(label, "Name: %s", g_operations[i].details.read_operation->pipe_name);
+                            ImGui::Text(label);
+                            break;
+                        case OPERATION_WRITE:
+                            sprintf(label, "PID: %u", g_operations[i].details.write_operation->pid);
+                            ImGui::Text(label);
+
+                            ImGui::SameLine();
+                            ImGui::Text("Type: write");
+
+                            ImGui::SameLine();
+                            sprintf(label, "Status: %x", g_operations[i].details.write_operation->status);
+                            ImGui::Text(label);
+
+                            ImGui::SameLine();
+                            sprintf(label, "Name: %s", g_operations[i].details.write_operation->pipe_name);
+                            ImGui::Text(label);
+
+                            showBytes(g_operations[i].details.write_operation->buffer_size,
+                                g_operations[i].details.write_operation->buffer);
+                            break;
+                        case OPERATION_INVALID:
+                            break;
+                    }
                 }
+                ImGui::EndTable();
             }
 
             ImGui::End();
