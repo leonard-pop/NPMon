@@ -598,73 +598,122 @@ void renderGUI() {
 
             static ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY;
             char label[MAX_PATH + 100];
+            const char *general_info_format = "%s - PID: %u, status: %x, pipe name: %s",
+                  *read_format = "ReadFile - PID: %u, status: %x, pipe name: %s, bytes read: %u",
+                  *write_format = "WriteFile - PID: %u, status: %x, pipe name: %s, bytes written: %u";
 
             if(ImGui::BeginTable("operations_table", 1, flags)) {
                 for(int i = 0; i < g_operations.size(); i++) {
                     ImGui::TableNextColumn();
                     switch(g_operations[i].type) {
                         case OPERATION_CREATE_NAMED_PIPE:
-                            sprintf(label, "PID: %u", g_operations[i].details.create_np_operation->pid);
-                            ImGui::Text(label);
+                            {
+                                CreateNamedPipeOperation *operation = g_operations[i].details.create_np_operation;
 
-                            ImGui::SameLine();
-                            ImGui::Text("Type: create named pipe");
+                                sprintf(label, general_info_format,
+                                        "CreateNamedPipe",
+                                        operation->pid,
+                                        operation->status,
+                                        operation->pipe_name);
 
-                            ImGui::SameLine();
-                            sprintf(label, "Status: %x", g_operations[i].details.create_np_operation->status);
-                            ImGui::Text(label);
+                                ImGui::PushID(i);
+                                ImGui::Selectable(label);
+                                if(ImGui::BeginPopupContextItem("operation_context_menu")) {
+                                    if(ImGui::Selectable("Copy details")) {
+                                        ImGui::SetClipboardText(label);
+                                    }
 
-                            ImGui::SameLine();
-                            sprintf(label, "Name: %s", g_operations[i].details.create_np_operation->pipe_name);
-                            ImGui::Text(label);
+                                    ImGui::EndPopup();
+                                }
+                                ImGui::PopID();
+                            }
+
                             break;
                         case OPERATION_CREATE:
-                            sprintf(label, "PID: %u", g_operations[i].details.create_operation->pid);
-                            ImGui::Text(label);
+                            {
+                                CreateOperation *operation = g_operations[i].details.create_operation;
 
-                            ImGui::SameLine();
-                            ImGui::Text("Type: create file");
+                                sprintf(label, general_info_format,
+                                        "CreateFile",
+                                        operation->pid,
+                                        operation->status,
+                                        operation->pipe_name);
 
-                            ImGui::SameLine();
-                            sprintf(label, "Status: %x", g_operations[i].details.create_operation->status);
-                            ImGui::Text(label);
+                                ImGui::PushID(i);
+                                ImGui::Selectable(label);
+                                if(ImGui::BeginPopupContextItem("operation_context_menu")) {
+                                    if(ImGui::Selectable("Copy details")) {
+                                        ImGui::SetClipboardText(label);
+                                    }
 
-                            ImGui::SameLine();
-                            sprintf(label, "Name: %s", g_operations[i].details.create_operation->pipe_name);
-                            ImGui::Text(label);
+                                    ImGui::EndPopup();
+                                }
+                                ImGui::PopID();
+                            }
+
                             break;
                         case OPERATION_READ:
-                            sprintf(label, "PID: %u", g_operations[i].details.read_operation->pid);
-                            ImGui::Text(label);
+                            {
+                                ReadOperation *operation = g_operations[i].details.read_operation;
 
-                            ImGui::SameLine();
-                            ImGui::Text("Type: read");
+                                sprintf(label, read_format,
+                                        operation->pid,
+                                        operation->status,
+                                        operation->pipe_name,
+                                        operation->buffer_size);
 
-                            ImGui::SameLine();
-                            sprintf(label, "Status: %x", g_operations[i].details.read_operation->status);
-                            ImGui::Text(label);
+                                ImGui::PushID(i);
+                                ImGui::Selectable(label);
+                                if(ImGui::BeginPopupContextItem("operation_context_menu")) {
+                                    if(ImGui::Selectable("Copy details")) {
+                                        ImGui::SetClipboardText(label);
+                                    }
 
-                            ImGui::SameLine();
-                            sprintf(label, "Name: %s", g_operations[i].details.read_operation->pipe_name);
-                            ImGui::Text(label);
+                                    ImGui::EndPopup();
+                                }
+                                ImGui::PopID();
+                            }
+
                             break;
                         case OPERATION_WRITE:
-                            sprintf(label, "PID: %u", g_operations[i].details.write_operation->pid);
-                            ImGui::Text(label);
+                            {
+                                WriteOperation *operation = g_operations[i].details.write_operation;
 
-                            ImGui::SameLine();
-                            ImGui::Text("Type: write");
+                                sprintf(label, write_format,
+                                        operation->pid,
+                                        operation->status,
+                                        operation->pipe_name,
+                                        operation->buffer_size);
 
-                            ImGui::SameLine();
-                            sprintf(label, "Status: %x", g_operations[i].details.write_operation->status);
-                            ImGui::Text(label);
+                                bool copy_buffer = false;
 
-                            ImGui::SameLine();
-                            sprintf(label, "Name: %s", g_operations[i].details.write_operation->pipe_name);
-                            ImGui::Text(label);
+                                ImGui::PushID(i);
+                                ImGui::Selectable(label);
+                                if(ImGui::BeginPopupContextItem("operation_context_menu")) {
+                                    if(ImGui::Selectable("Copy details")) {
+                                        ImGui::SetClipboardText(label);
+                                    }
 
-                            showBytes(g_operations[i].details.write_operation->buffer_size,
-                                g_operations[i].details.write_operation->buffer);
+                                    if(ImGui::Selectable("Copy buffer")) {
+                                        copy_buffer = true;
+                                    }
+
+                                    ImGui::EndPopup();
+                                }
+                                ImGui::PopID();
+
+                                if(copy_buffer) {
+                                    ImGui::LogToClipboard();
+                                }
+
+                                showBytes(g_operations[i].details.write_operation->buffer_size,
+                                    g_operations[i].details.write_operation->buffer);
+
+                                if(copy_buffer) {
+                                    ImGui::LogFinish();
+                                }
+                            }
+
                             break;
                         case OPERATION_INVALID:
                             break;
