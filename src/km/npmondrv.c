@@ -194,17 +194,10 @@ ULONG GetNewMessageID() {
 }
 
 void SendChunk(MessageChunk *chunk) {
-    //LARGE_INTEGER timeout = { -1000 };
-    //LARGE_INTEGER timeout = { 100000 };
-
-    /*
-    LARGE_INTEGER timeout = { -100000 };
+    LARGE_INTEGER timeout;
+    timeout.QuadPart = -1000000;
     FltSendMessage(g_minifilter_handle, &g_client_port, chunk,
             sizeof(MessageChunk), NULL, NULL, &timeout);
-    */
-
-    FltSendMessage(g_minifilter_handle, &g_client_port, chunk,
-            sizeof(MessageChunk), NULL, NULL, NULL);
 }
 
 void AddToChunkBuffer(MessageChunk *chunk, char **buffer_end,
