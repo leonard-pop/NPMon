@@ -447,7 +447,7 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationCreate(
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
 
-    HANDLE pid = PsGetCurrentProcessId();
+    HANDLE pid = FltGetRequestorProcessId(Data);
 
     DbgPrint("Create captured: %wZ, status: %x, pid %lu\n",
             FltObjects->FileObject->FileName,
@@ -479,7 +479,7 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationCreateNamedPipe(
     }
     // #################
 
-    HANDLE pid = PsGetCurrentProcessId();
+    HANDLE pid = FltGetRequestorProcessId(Data);
 
     DbgPrint("Create namd pipe captured: %wZ, status: %x, pid %lu\n",
             FltObjects->FileObject->FileName,
@@ -517,7 +517,7 @@ FLT_PREOP_CALLBACK_STATUS FLTAPI PreOperationRead(
     ULONG read_length_requested = Data->Iopb->Parameters.Read.Length,
         read_length_got = Data->IoStatus.Information;
     char* read_buffer = (char*)Data->Iopb->Parameters.Read.ReadBuffer;
-    HANDLE pid = PsGetCurrentProcessId();
+    HANDLE pid = FltGetRequestorProcessId(Data);
 
     DbgPrint("Preop Named pipe read captured: %wZ, status: %x, pid %lu, requested: %lu, got: %u, irql: %x\n",
             FltObjects->FileObject->FileName,
@@ -564,7 +564,7 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationRead(
     ULONG read_length_requested = Data->Iopb->Parameters.Read.Length,
         read_length_got = Data->IoStatus.Information;
     //char* read_buffer = (char*)Data->Iopb->Parameters.Read.ReadBuffer;
-    HANDLE pid = PsGetCurrentProcessId();
+    HANDLE pid = FltGetRequestorProcessId(Data);
 
     DbgPrint("Postop Named pipe read captured: %wZ, status: %x, pid %lu, requested: %lu, got: %u, irql: %x\n",
             FltObjects->FileObject->FileName,
@@ -609,7 +609,7 @@ FLT_POSTOP_CALLBACK_STATUS SendReadMessageWhenSafe (
     NTSTATUS status = FltLockUserBuffer( Data );
     ULONG read_length_got = Data->IoStatus.Information;
     char* read_buffer = (char*)Data->Iopb->Parameters.Read.ReadBuffer;
-    HANDLE pid = PsGetCurrentProcessId();
+    HANDLE pid = FltGetRequestorProcessId(Data);
 
     if(!NT_SUCCESS(status)) {
         DbgPrint("Failed to lock user buffer\n");
@@ -657,7 +657,7 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationWrite(
     ULONG write_length_requested = Data->Iopb->Parameters.Write.Length,
         write_length_got = Data->IoStatus.Information;
     char* write_buffer = (char*)Data->Iopb->Parameters.Write.WriteBuffer;
-    HANDLE pid = PsGetCurrentProcessId();
+    HANDLE pid = FltGetRequestorProcessId(Data);
 
     DbgPrint("Named pipe write captured: %wZ, status: %x, pid %lu, requested: %lu, got: %lu\n",
             FltObjects->FileObject->FileName,
