@@ -69,7 +69,9 @@ typedef struct {
 } Operation;
 
 volatile sig_atomic_t g_running = 1;
+bool g_capturing = true;
 std::vector<Operation> g_operations;
+HANDLE g_capturing_event;
 
 void stop(int sig) {
     g_running = 0;
@@ -470,6 +472,7 @@ void handleCommunication() {
     HANDLE client_port;
     HRESULT result;
     std::map< unsigned int, std::vector<MessageChunk> > chunk_map;
+    Operation new_operation;
 
     printf("[*] Connecting to communication port\n");
     result = FilterConnectCommunicationPort(port_name, 0, NULL, 0,
@@ -488,20 +491,49 @@ void handleCommunication() {
                 sizeof(Message),
                 NULL);
 
-        if(result != S_OK) {
-            printf("[!!!] Error getting message: %lx\n", result);
-            g_running = 0;
-        } else {
-            chunk_map[message.chunk.message_id].push_back(message.chunk);
-            printf("[*] Got chunk\n");
+        if(g_capturing) {
+            if(result != S_OK) {
+                printf("[!!!] Error getting message: %lx\n", result);
+                g_running = 0;
+            } else {
+                chunk_map[message.chunk.message_id].push_back(message.chunk);
+                printf("[*] Got chunk\n");
 
-            if(message.chunk.final_chunk) {
-                printf("[*] Parsing chunks\n");
-                g_operations.push_back(parseMessageChunks(chunk_map[message.chunk.message_id]));
-                chunk_map.erase(message.chunk.message_id);
+                if(message.chunk.final_chunk) {
+                    printf("[*] Parsing chunks\n");
 
-                printOperation(g_operations[g_operations.size() - 1]);
+                    new_operation = parseMessageChunks(chunk_map[message.chunk.message_id]);
+                    if(new_operation.type != OPERATION_INVALID) {
+                        g_operations.push_back(new_operation);
+                    }
+
+                    chunk_map.erase(message.chunk.message_id);
+
+                    //printOperation(g_operations[g_operations.size() - 1]);
+                }
             }
+        } else {
+            printf("[*] Pausing capture\n");
+            chunk_map.clear();
+
+            printf("[*] Closig communicaion port\n");
+            CloseHandle(client_port);
+
+            if(WaitForSingleObject(g_capturing_event, INFINITE) != WAIT_OBJECT_0) {
+                printf("[X] Waiting for g_capturing_event failed");
+            }
+
+            printf("[*] Resuming capture\n");
+            printf("[*] Connecting to communication port\n");
+            result = FilterConnectCommunicationPort(port_name, 0, NULL, 0,
+                    NULL, &client_port);
+
+            if(result != S_OK) {
+                printf("[X] Error connecting: %lx\n", result);
+                return;
+            }
+
+            printf("[*] Successfully reconnected to communication port\n");
         }
     }
 
@@ -533,6 +565,151 @@ void showBytes(ULONG size, unsigned char *buffer) {
 
         buffer_pos += line_pos;
     }
+}
+
+void showMainWindow() {
+    ImGui::Begin("Main window", NULL, ImGuiWindowFlags_MenuBar);
+
+    if(ImGui::BeginMenuBar()){
+        if(ImGui::BeginMenu("File")) {
+            if(ImGui::MenuItem("Capturing", "E", &g_capturing)) {
+                if(g_capturing) {
+                    SetEvent(g_capturing_event);
+                }
+            }
+            ImGui::EndMenu();
+        }
+
+        ImGui::EndMenuBar();
+    }
+
+    static ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY;
+    char label[MAX_PATH + 100];
+    const char *general_info_format = "%s - PID: %u, status: %x, pipe name: %s",
+          *read_format = "ReadFile - PID: %u, status: %x, pipe name: %s, bytes read: %u",
+          *write_format = "WriteFile - PID: %u, status: %x, pipe name: %s, bytes written: %u";
+
+    if(ImGui::BeginTable("operations_table", 1, flags)) {
+        for(int i = 0; i < g_operations.size(); i++) {
+            ImGui::TableNextColumn();
+            switch(g_operations[i].type) {
+                case OPERATION_CREATE_NAMED_PIPE:
+                    {
+                        CreateNamedPipeOperation *operation = g_operations[i].details.create_np_operation;
+
+                        sprintf(label, general_info_format,
+                                "CreateNamedPipe",
+                                operation->pid,
+                                operation->status,
+                                operation->pipe_name);
+
+                        ImGui::PushID(i);
+                        ImGui::Selectable(label);
+                        if(ImGui::BeginPopupContextItem("operation_context_menu")) {
+                            if(ImGui::Selectable("Copy details")) {
+                                ImGui::SetClipboardText(label);
+                            }
+
+                            ImGui::EndPopup();
+                        }
+                        ImGui::PopID();
+                    }
+
+                    break;
+                case OPERATION_CREATE:
+                    {
+                        CreateOperation *operation = g_operations[i].details.create_operation;
+
+                        sprintf(label, general_info_format,
+                                "CreateFile",
+                                operation->pid,
+                                operation->status,
+                                operation->pipe_name);
+
+                        ImGui::PushID(i);
+                        ImGui::Selectable(label);
+                        if(ImGui::BeginPopupContextItem("operation_context_menu")) {
+                            if(ImGui::Selectable("Copy details")) {
+                                ImGui::SetClipboardText(label);
+                            }
+
+                            ImGui::EndPopup();
+                        }
+                        ImGui::PopID();
+                    }
+
+                    break;
+                case OPERATION_READ:
+                    {
+                        ReadOperation *operation = g_operations[i].details.read_operation;
+
+                        sprintf(label, read_format,
+                                operation->pid,
+                                operation->status,
+                                operation->pipe_name,
+                                operation->buffer_size);
+
+                        ImGui::PushID(i);
+                        ImGui::Selectable(label);
+                        if(ImGui::BeginPopupContextItem("operation_context_menu")) {
+                            if(ImGui::Selectable("Copy details")) {
+                                ImGui::SetClipboardText(label);
+                            }
+
+                            ImGui::EndPopup();
+                        }
+                        ImGui::PopID();
+                    }
+
+                    break;
+                case OPERATION_WRITE:
+                    {
+                        WriteOperation *operation = g_operations[i].details.write_operation;
+
+                        sprintf(label, write_format,
+                                operation->pid,
+                                operation->status,
+                                operation->pipe_name,
+                                operation->buffer_size);
+
+                        bool copy_buffer = false;
+
+                        ImGui::PushID(i);
+                        ImGui::Selectable(label);
+                        if(ImGui::BeginPopupContextItem("operation_context_menu")) {
+                            if(ImGui::Selectable("Copy details")) {
+                                ImGui::SetClipboardText(label);
+                            }
+
+                            if(ImGui::Selectable("Copy buffer")) {
+                                copy_buffer = true;
+                            }
+
+                            ImGui::EndPopup();
+                        }
+                        ImGui::PopID();
+
+                        if(copy_buffer) {
+                            ImGui::LogToClipboard();
+                        }
+
+                        showBytes(g_operations[i].details.write_operation->buffer_size,
+                            g_operations[i].details.write_operation->buffer);
+
+                        if(copy_buffer) {
+                            ImGui::LogFinish();
+                        }
+                    }
+
+                    break;
+                case OPERATION_INVALID:
+                    break;
+            }
+        }
+        ImGui::EndTable();
+    }
+
+    ImGui::End();
 }
 
 static ID3D10Device*            g_pd3dDevice = NULL;
@@ -578,152 +755,21 @@ void renderGUI() {
     while (!done)
     {
         MSG msg;
-        while (::PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE))
-        {
+        while(::PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE)) {
             ::TranslateMessage(&msg);
             ::DispatchMessage(&msg);
             if (msg.message == WM_QUIT)
                 done = true;
         }
-        if (done)
+        if(done) {
             break;
+        }
 
         ImGui_ImplDX10_NewFrame();
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
-        {
-            ImGui::Begin("NPMon");
-
-
-            static ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY;
-            char label[MAX_PATH + 100];
-            const char *general_info_format = "%s - PID: %u, status: %x, pipe name: %s",
-                  *read_format = "ReadFile - PID: %u, status: %x, pipe name: %s, bytes read: %u",
-                  *write_format = "WriteFile - PID: %u, status: %x, pipe name: %s, bytes written: %u";
-
-            if(ImGui::BeginTable("operations_table", 1, flags)) {
-                for(int i = 0; i < g_operations.size(); i++) {
-                    ImGui::TableNextColumn();
-                    switch(g_operations[i].type) {
-                        case OPERATION_CREATE_NAMED_PIPE:
-                            {
-                                CreateNamedPipeOperation *operation = g_operations[i].details.create_np_operation;
-
-                                sprintf(label, general_info_format,
-                                        "CreateNamedPipe",
-                                        operation->pid,
-                                        operation->status,
-                                        operation->pipe_name);
-
-                                ImGui::PushID(i);
-                                ImGui::Selectable(label);
-                                if(ImGui::BeginPopupContextItem("operation_context_menu")) {
-                                    if(ImGui::Selectable("Copy details")) {
-                                        ImGui::SetClipboardText(label);
-                                    }
-
-                                    ImGui::EndPopup();
-                                }
-                                ImGui::PopID();
-                            }
-
-                            break;
-                        case OPERATION_CREATE:
-                            {
-                                CreateOperation *operation = g_operations[i].details.create_operation;
-
-                                sprintf(label, general_info_format,
-                                        "CreateFile",
-                                        operation->pid,
-                                        operation->status,
-                                        operation->pipe_name);
-
-                                ImGui::PushID(i);
-                                ImGui::Selectable(label);
-                                if(ImGui::BeginPopupContextItem("operation_context_menu")) {
-                                    if(ImGui::Selectable("Copy details")) {
-                                        ImGui::SetClipboardText(label);
-                                    }
-
-                                    ImGui::EndPopup();
-                                }
-                                ImGui::PopID();
-                            }
-
-                            break;
-                        case OPERATION_READ:
-                            {
-                                ReadOperation *operation = g_operations[i].details.read_operation;
-
-                                sprintf(label, read_format,
-                                        operation->pid,
-                                        operation->status,
-                                        operation->pipe_name,
-                                        operation->buffer_size);
-
-                                ImGui::PushID(i);
-                                ImGui::Selectable(label);
-                                if(ImGui::BeginPopupContextItem("operation_context_menu")) {
-                                    if(ImGui::Selectable("Copy details")) {
-                                        ImGui::SetClipboardText(label);
-                                    }
-
-                                    ImGui::EndPopup();
-                                }
-                                ImGui::PopID();
-                            }
-
-                            break;
-                        case OPERATION_WRITE:
-                            {
-                                WriteOperation *operation = g_operations[i].details.write_operation;
-
-                                sprintf(label, write_format,
-                                        operation->pid,
-                                        operation->status,
-                                        operation->pipe_name,
-                                        operation->buffer_size);
-
-                                bool copy_buffer = false;
-
-                                ImGui::PushID(i);
-                                ImGui::Selectable(label);
-                                if(ImGui::BeginPopupContextItem("operation_context_menu")) {
-                                    if(ImGui::Selectable("Copy details")) {
-                                        ImGui::SetClipboardText(label);
-                                    }
-
-                                    if(ImGui::Selectable("Copy buffer")) {
-                                        copy_buffer = true;
-                                    }
-
-                                    ImGui::EndPopup();
-                                }
-                                ImGui::PopID();
-
-                                if(copy_buffer) {
-                                    ImGui::LogToClipboard();
-                                }
-
-                                showBytes(g_operations[i].details.write_operation->buffer_size,
-                                    g_operations[i].details.write_operation->buffer);
-
-                                if(copy_buffer) {
-                                    ImGui::LogFinish();
-                                }
-                            }
-
-                            break;
-                        case OPERATION_INVALID:
-                            break;
-                    }
-                }
-                ImGui::EndTable();
-            }
-
-            ImGui::End();
-        }
+        showMainWindow();
 
         // Rendering
         ImGui::Render();
@@ -843,9 +889,11 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 int main(void) {
     std::thread communication_thread;
     signal(SIGINT, stop);
+    g_capturing_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 
     communication_thread = std::thread(handleCommunication);
 
+    /*
     CreateNamedPipeOperation testing_create_np_op;
     testing_create_np_op.pid = (HANDLE)123;
     testing_create_np_op.pipe_name = "/pipe-name";
@@ -854,6 +902,7 @@ int main(void) {
     testing_operation.type = OPERATION_CREATE_NAMED_PIPE;
     testing_operation.details.create_np_operation = &testing_create_np_op;
     g_operations.push_back(testing_operation);
+    */
 
     renderGUI();
 
