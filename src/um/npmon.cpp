@@ -569,14 +569,20 @@ void showBytes(ULONG size, unsigned char *buffer) {
 
 void showMainWindow() {
     ImGui::Begin("Main window", NULL, ImGuiWindowFlags_MenuBar);
+    static bool auto_scroll = true;
 
     if(ImGui::BeginMenuBar()){
         if(ImGui::BeginMenu("File")) {
-            if(ImGui::MenuItem("Capturing", "E", &g_capturing)) {
+            if(ImGui::MenuItem("Capturing", "Ctrl+E", &g_capturing)) {
                 if(g_capturing) {
                     SetEvent(g_capturing_event);
                 }
             }
+            ImGui::EndMenu();
+        }
+
+        if(ImGui::BeginMenu("Edit")) {
+            ImGui::MenuItem("Auto Scroll", "Ctrl+A", &auto_scroll);
             ImGui::EndMenu();
         }
 
@@ -588,8 +594,11 @@ void showMainWindow() {
     const char *general_info_format = "%s - PID: %u, status: %x, pipe name: %s",
           *read_format = "ReadFile - PID: %u, status: %x, pipe name: %s, bytes read: %u",
           *write_format = "WriteFile - PID: %u, status: %x, pipe name: %s, bytes written: %u";
+    static int last_size = 0, new_size = 0;
 
     if(ImGui::BeginTable("operations_table", 1, flags)) {
+        new_size = g_operations.size();
+
         for(int i = 0; i < g_operations.size(); i++) {
             ImGui::TableNextColumn();
             switch(g_operations[i].type) {
@@ -706,6 +715,12 @@ void showMainWindow() {
                     break;
             }
         }
+
+        if(auto_scroll && last_size != new_size) {
+            ImGui::SetScrollHereY(1.0f);
+        }
+        last_size = new_size;
+
         ImGui::EndTable();
     }
 
