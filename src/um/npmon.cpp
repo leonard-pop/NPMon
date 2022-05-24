@@ -8,6 +8,7 @@
 #include <thread>
 
 #include "imgui.h"
+#include "imgui_internal.h"
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx10.h"
 #include <d3d10_1.h>
@@ -541,6 +542,11 @@ void handleCommunication() {
     CloseHandle(client_port);
 }
 
+bool shortcutIsPressed(ImGuiKeyModFlags mod, ImGuiKey key, bool repeat)
+{
+    return mod == ImGui::GetMergedKeyModFlags() && ImGui::IsKeyPressed(ImGui::GetKeyIndex(key), repeat);
+}
+
 void showBytes(ULONG size, unsigned char *buffer) {
     ULONG buffer_pos = 0, line_pos = 0;
 
@@ -567,16 +573,29 @@ void showBytes(ULONG size, unsigned char *buffer) {
     }
 }
 
+void toggleCapturing() {
+    if(g_capturing) {
+        SetEvent(g_capturing_event);
+    }
+}
+
 void showMainWindow() {
     ImGui::Begin("Main window", NULL, ImGuiWindowFlags_MenuBar);
     static bool auto_scroll = true;
 
+    if(shortcutIsPressed(ImGuiKeyModFlags_Ctrl, ImGuiKey_E, false)) {
+        g_capturing = !g_capturing;
+        toggleCapturing();
+    }
+
+    if(shortcutIsPressed(ImGuiKeyModFlags_Ctrl, ImGuiKey_A, false)) {
+        auto_scroll = !auto_scroll;
+    }
+
     if(ImGui::BeginMenuBar()){
         if(ImGui::BeginMenu("File")) {
             if(ImGui::MenuItem("Capturing", "Ctrl+E", &g_capturing)) {
-                if(g_capturing) {
-                    SetEvent(g_capturing_event);
-                }
+                toggleCapturing();
             }
             ImGui::EndMenu();
         }
