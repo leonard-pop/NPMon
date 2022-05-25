@@ -592,6 +592,10 @@ void showMainWindow() {
         auto_scroll = !auto_scroll;
     }
 
+    if(shortcutIsPressed(ImGuiKeyModFlags_Ctrl, ImGuiKey_X, false)) {
+            g_operations.clear();
+    }
+
     if(ImGui::BeginMenuBar()){
         if(ImGui::BeginMenu("File")) {
             if(ImGui::MenuItem("Capturing", "Ctrl+E", &g_capturing)) {
@@ -605,6 +609,9 @@ void showMainWindow() {
 
         if(ImGui::BeginMenu("Edit")) {
             ImGui::MenuItem("Auto Scroll", "Ctrl+A", &auto_scroll);
+            if(ImGui::MenuItem("Clear History", "Ctrl+X")) {
+                g_operations.clear();
+            }
             ImGui::EndMenu();
         }
 
