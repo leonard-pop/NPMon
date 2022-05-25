@@ -70,7 +70,7 @@ typedef struct {
 } Operation;
 
 volatile sig_atomic_t g_running = 1;
-bool g_capturing = true;
+bool g_gui_running = true, g_capturing = true;
 std::vector<Operation> g_operations;
 HANDLE g_capturing_event;
 
@@ -597,6 +597,9 @@ void showMainWindow() {
             if(ImGui::MenuItem("Capturing", "Ctrl+E", &g_capturing)) {
                 toggleCapturing();
             }
+            if(ImGui::MenuItem("Exit", NULL)) {
+                g_gui_running = false;
+            }
             ImGui::EndMenu();
         }
 
@@ -785,17 +788,16 @@ void renderGUI() {
 
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
-    bool done = false;
-    while (!done)
+    while(g_gui_running)
     {
         MSG msg;
         while(::PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE)) {
             ::TranslateMessage(&msg);
             ::DispatchMessage(&msg);
             if (msg.message == WM_QUIT)
-                done = true;
+                g_gui_running = false;
         }
-        if(done) {
+        if(!g_gui_running) {
             break;
         }
 
