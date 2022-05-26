@@ -133,8 +133,14 @@ CreateOperation* parseCreateOperation(std::vector<MessageChunk> &chunks) {
 
         create_operation->pipe_name =
             new char[wpipe_name_size + sizeof(wchar_t)];
-        wcstombs_s(&pipe_name_size, create_operation->pipe_name,
-                wpipe_name_size, wpipe_name, wpipe_name_size);
+
+        if(wpipe_name_size) {
+            wcstombs_s(&pipe_name_size, create_operation->pipe_name,
+                    wpipe_name_size, wpipe_name, wpipe_name_size);
+        } else {
+            printf("[!] Empty name\n");
+            create_operation->pipe_name[0] = '\0';
+        }
 
         delete wpipe_name;
     } catch(std::exception) {
@@ -180,8 +186,14 @@ CreateNamedPipeOperation* parseCreateNamedPipeOperation(std::vector<MessageChunk
 
         create_np_operation->pipe_name =
             new char[wpipe_name_size + sizeof(wchar_t)];
-        wcstombs_s(&pipe_name_size, create_np_operation->pipe_name,
-                wpipe_name_size, wpipe_name, wpipe_name_size);
+
+        if(wpipe_name_size) {
+            wcstombs_s(&pipe_name_size, create_np_operation->pipe_name,
+                    wpipe_name_size, wpipe_name, wpipe_name_size);
+        } else {
+            printf("[!] Empty name\n");
+            create_np_operation->pipe_name[0] = '\0';
+        }
 
         delete wpipe_name;
     } catch(std::exception) {
@@ -228,8 +240,13 @@ ReadOperation* parseReadOperation(std::vector<MessageChunk> &chunks) {
 
         read_operation->pipe_name =
             new char[wpipe_name_size + sizeof(wchar_t)];
-        wcstombs_s(&pipe_name_size, read_operation->pipe_name,
-                wpipe_name_size, wpipe_name, wpipe_name_size);
+        if(wpipe_name_size) {
+            wcstombs_s(&pipe_name_size, read_operation->pipe_name,
+                    wpipe_name_size, wpipe_name, wpipe_name_size);
+        } else {
+            printf("[!] Empty name\n");
+            read_operation->pipe_name[0] = '\0';
+        }
 
         delete wpipe_name;
 
@@ -287,8 +304,14 @@ WriteOperation* parseWriteOperation(std::vector<MessageChunk> &chunks) {
 
         write_operation->pipe_name =
             new char[wpipe_name_size + sizeof(wchar_t)];
-        wcstombs_s(&pipe_name_size, write_operation->pipe_name,
-                wpipe_name_size, wpipe_name, wpipe_name_size);
+
+        if(wpipe_name_size) {
+            wcstombs_s(&pipe_name_size, write_operation->pipe_name,
+                    wpipe_name_size, wpipe_name, wpipe_name_size);
+        } else {
+            printf("[!] Empty name\n");
+            write_operation->pipe_name[0] = '\0';
+        }
 
         delete wpipe_name;
 
@@ -981,6 +1004,7 @@ int main(void) {
     renderGUI();
 
     g_running = 0;
+    SetEvent(g_capturing_event);
     communication_thread.join();
 
     printf("[*] Cleanup\n");
