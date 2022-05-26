@@ -542,6 +542,23 @@ void handleCommunication() {
     CloseHandle(client_port);
 }
 
+char* getOperationPipeName(Operation operation) {
+    switch(operation.type) {
+        case OPERATION_CREATE_NAMED_PIPE:
+            return operation.details.create_np_operation->pipe_name;
+        case OPERATION_CREATE:
+            return operation.details.create_operation->pipe_name;
+        case OPERATION_READ:
+            return operation.details.read_operation->pipe_name;
+        case OPERATION_WRITE:
+            return operation.details.write_operation->pipe_name;
+        case OPERATION_INVALID:
+            return NULL;
+    }
+
+    return NULL;
+}
+
 bool shortcutIsPressed(ImGuiKeyModFlags mod, ImGuiKey key, bool repeat)
 {
     return mod == ImGui::GetMergedKeyModFlags() && ImGui::IsKeyPressed(ImGui::GetKeyIndex(key), repeat);
@@ -621,36 +638,41 @@ void showMainWindow() {
     static ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY;
     char label[MAX_PATH + 100];
     const char *general_info_format = "%s - PID: %u, status: %x, pipe name: %s",
-          *read_format = "ReadFile - PID: %u, status: %x, pipe name: %s, bytes read: %u",
-          *write_format = "WriteFile - PID: %u, status: %x, pipe name: %s, bytes written: %u";
+          *read_format = "Read - PID: %u, status: %x, pipe name: %s, bytes read: %u",
+          *write_format = "Write - PID: %u, status: %x, pipe name: %s, bytes written: %u";
     static int last_size = 0, new_size = 0;
+    static ImGuiTextFilter filter;
+
+    filter.Draw();
 
     if(ImGui::BeginTable("operations_table", 1, flags)) {
         new_size = g_operations.size();
 
         for(int i = 0; i < g_operations.size(); i++) {
-            ImGui::TableNextColumn();
             switch(g_operations[i].type) {
                 case OPERATION_CREATE_NAMED_PIPE:
                     {
                         CreateNamedPipeOperation *operation = g_operations[i].details.create_np_operation;
 
                         sprintf(label, general_info_format,
-                                "CreateNamedPipe",
+                                "Create Named Pipe",
                                 operation->pid,
                                 operation->status,
                                 operation->pipe_name);
 
-                        ImGui::PushID(i);
-                        ImGui::Selectable(label);
-                        if(ImGui::BeginPopupContextItem("operation_context_menu")) {
-                            if(ImGui::Selectable("Copy details")) {
-                                ImGui::SetClipboardText(label);
-                            }
+                        if(filter.PassFilter(label)) {
+                            ImGui::TableNextColumn();
+                            ImGui::PushID(i);
+                            ImGui::Selectable(label);
+                            if(ImGui::BeginPopupContextItem("operation_context_menu")) {
+                                if(ImGui::Selectable("Copy details")) {
+                                    ImGui::SetClipboardText(label);
+                                }
 
-                            ImGui::EndPopup();
+                                ImGui::EndPopup();
+                            }
+                            ImGui::PopID();
                         }
-                        ImGui::PopID();
                     }
 
                     break;
@@ -659,21 +681,24 @@ void showMainWindow() {
                         CreateOperation *operation = g_operations[i].details.create_operation;
 
                         sprintf(label, general_info_format,
-                                "CreateFile",
+                                "Create",
                                 operation->pid,
                                 operation->status,
                                 operation->pipe_name);
 
-                        ImGui::PushID(i);
-                        ImGui::Selectable(label);
-                        if(ImGui::BeginPopupContextItem("operation_context_menu")) {
-                            if(ImGui::Selectable("Copy details")) {
-                                ImGui::SetClipboardText(label);
-                            }
+                        if(filter.PassFilter(label)) {
+                            ImGui::TableNextColumn();
+                            ImGui::PushID(i);
+                            ImGui::Selectable(label);
+                            if(ImGui::BeginPopupContextItem("operation_context_menu")) {
+                                if(ImGui::Selectable("Copy details")) {
+                                    ImGui::SetClipboardText(label);
+                                }
 
-                            ImGui::EndPopup();
+                                ImGui::EndPopup();
+                            }
+                            ImGui::PopID();
                         }
-                        ImGui::PopID();
                     }
 
                     break;
@@ -687,16 +712,19 @@ void showMainWindow() {
                                 operation->pipe_name,
                                 operation->buffer_size);
 
-                        ImGui::PushID(i);
-                        ImGui::Selectable(label);
-                        if(ImGui::BeginPopupContextItem("operation_context_menu")) {
-                            if(ImGui::Selectable("Copy details")) {
-                                ImGui::SetClipboardText(label);
-                            }
+                        if(filter.PassFilter(label)) {
+                            ImGui::TableNextColumn();
+                            ImGui::PushID(i);
+                            ImGui::Selectable(label);
+                            if(ImGui::BeginPopupContextItem("operation_context_menu")) {
+                                if(ImGui::Selectable("Copy details")) {
+                                    ImGui::SetClipboardText(label);
+                                }
 
-                            ImGui::EndPopup();
+                                ImGui::EndPopup();
+                            }
+                            ImGui::PopID();
                         }
-                        ImGui::PopID();
                     }
 
                     break;
@@ -712,30 +740,33 @@ void showMainWindow() {
 
                         bool copy_buffer = false;
 
-                        ImGui::PushID(i);
-                        ImGui::Selectable(label);
-                        if(ImGui::BeginPopupContextItem("operation_context_menu")) {
-                            if(ImGui::Selectable("Copy details")) {
-                                ImGui::SetClipboardText(label);
+                        if(filter.PassFilter(label)) {
+                            ImGui::TableNextColumn();
+                            ImGui::PushID(i);
+                            ImGui::Selectable(label);
+                            if(ImGui::BeginPopupContextItem("operation_context_menu")) {
+                                if(ImGui::Selectable("Copy details")) {
+                                    ImGui::SetClipboardText(label);
+                                }
+
+                                if(ImGui::Selectable("Copy buffer")) {
+                                    copy_buffer = true;
+                                }
+
+                                ImGui::EndPopup();
+                            }
+                            ImGui::PopID();
+
+                            if(copy_buffer) {
+                                ImGui::LogToClipboard();
                             }
 
-                            if(ImGui::Selectable("Copy buffer")) {
-                                copy_buffer = true;
+                            showBytes(g_operations[i].details.write_operation->buffer_size,
+                                g_operations[i].details.write_operation->buffer);
+
+                            if(copy_buffer) {
+                                ImGui::LogFinish();
                             }
-
-                            ImGui::EndPopup();
-                        }
-                        ImGui::PopID();
-
-                        if(copy_buffer) {
-                            ImGui::LogToClipboard();
-                        }
-
-                        showBytes(g_operations[i].details.write_operation->buffer_size,
-                            g_operations[i].details.write_operation->buffer);
-
-                        if(copy_buffer) {
-                            ImGui::LogFinish();
                         }
                     }
 
