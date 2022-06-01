@@ -660,9 +660,9 @@ void showMainWindow() {
 
     static ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY;
     char label[MAX_PATH + 100];
-    const char *general_info_format = "%s - PID: %u, status: %x, pipe name: %s",
-          *read_format = "Read - PID: %u, status: %x, pipe name: %s, bytes read: %u",
-          *write_format = "Write - PID: %u, status: %x, pipe name: %s, bytes written: %u";
+    const char *general_info_format = "%s - PID: %u, status: 0x%X, pipe name: %s",
+          *read_format = "Read - PID: %u, status: 0x%X, pipe name: %s, bytes read: %u",
+          *write_format = "Write - PID: %u, status: 0x%X, pipe name: %s, bytes written: %u";
     static int last_size = 0, new_size = 0;
     static ImGuiTextFilter filter;
 
