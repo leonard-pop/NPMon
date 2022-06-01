@@ -231,23 +231,11 @@ void AddToChunkBuffer(MessageChunk *chunk, char **buffer_end,
 }
 
 void SendMessageCreate(
-    UNICODE_STRING file_name,
+    char *file_name,
+    USHORT file_name_size,
     HANDLE pid,
     NTSTATUS status)
 {
-    // ## REMOVE THIS ##
-    /*
-    if(file_name.Buffer == NULL || wcsstr(file_name.Buffer,
-            L"testing") == NULL) {
-        return;
-    }
-    */
-    // #################
-    if(file_name.Length >= 34) {
-        file_name.Buffer += 17;
-        file_name.Length -= 34;
-    }
-
     ULONG message_tag = 'cgsM';
     char *buffer_end;
     long long buffer_free;
@@ -266,10 +254,10 @@ void SendMessageCreate(
             sizeof(pid));
     AddToChunkBuffer(chunk, &buffer_end, (char*)&status,
             sizeof(status));
-    AddToChunkBuffer(chunk, &buffer_end, (char*)&file_name.Length,
-            sizeof(file_name.Length));
-    AddToChunkBuffer(chunk, &buffer_end, (char*)file_name.Buffer,
-            file_name.Length);
+    AddToChunkBuffer(chunk, &buffer_end, (char*)&file_name_size,
+            sizeof(file_name_size));
+    AddToChunkBuffer(chunk, &buffer_end, (char*)file_name,
+            file_name_size);
 
     buffer_free = CHUNK_BUFFER_SIZE -
         (buffer_end - chunk->buffer);
@@ -283,23 +271,11 @@ void SendMessageCreate(
 }
 
 void SendMessageCreateNamedPipe(
-    UNICODE_STRING file_name,
+    char *file_name,
+    USHORT file_name_size,
     HANDLE pid,
     NTSTATUS status)
 {
-    // ## REMOVE THIS ##
-    /*
-    if(file_name.Buffer == NULL || wcsstr(file_name.Buffer,
-            L"testing") == NULL) {
-        return;
-    }
-    */
-    // #################
-    if(file_name.Length >= 34) {
-        file_name.Buffer += 17;
-        file_name.Length -= 34;
-    }
-
     ULONG message_tag = 'pgsM';
     char *buffer_end;
     long long buffer_free;
@@ -318,10 +294,10 @@ void SendMessageCreateNamedPipe(
             sizeof(pid));
     AddToChunkBuffer(chunk, &buffer_end, (char*)&status,
             sizeof(status));
-    AddToChunkBuffer(chunk, &buffer_end, (char*)&file_name.Length,
-            sizeof(file_name.Length));
-    AddToChunkBuffer(chunk, &buffer_end, (char*)file_name.Buffer,
-            file_name.Length);
+    AddToChunkBuffer(chunk, &buffer_end, (char*)&file_name_size,
+            sizeof(file_name_size));
+    AddToChunkBuffer(chunk, &buffer_end, (char*)file_name,
+            file_name_size);
 
     buffer_free = CHUNK_BUFFER_SIZE -
         (buffer_end - chunk->buffer);
@@ -335,25 +311,13 @@ void SendMessageCreateNamedPipe(
 }
 
 void SendMessageRead(
-    UNICODE_STRING file_name,
+    char *file_name,
+    USHORT file_name_size,
     HANDLE pid,
     NTSTATUS status,
     ULONG read_length,
     char* read_buffer)
 {
-    // ## REMOVE THIS ##
-    /*
-    if(file_name.Buffer == NULL || wcsstr(file_name.Buffer,
-            L"testing") == NULL) {
-        return;
-    }
-    */
-    // #################
-    if(file_name.Length >= 34) {
-        file_name.Buffer += 17;
-        file_name.Length -= 34;
-    }
-
     ULONG message_tag = 'rgsM';
     char *buffer_end;
     long long buffer_free;
@@ -372,10 +336,10 @@ void SendMessageRead(
             sizeof(pid));
     AddToChunkBuffer(chunk, &buffer_end, (char*)&status,
             sizeof(status));
-    AddToChunkBuffer(chunk, &buffer_end, (char*)&file_name.Length,
-            sizeof(file_name.Length));
-    AddToChunkBuffer(chunk, &buffer_end, (char*)file_name.Buffer,
-            file_name.Length);
+    AddToChunkBuffer(chunk, &buffer_end, (char*)&file_name_size,
+            sizeof(file_name_size));
+    AddToChunkBuffer(chunk, &buffer_end, (char*)file_name,
+            file_name_size);
     AddToChunkBuffer(chunk, &buffer_end, (char*)&read_length,
             sizeof(read_length));
     AddToChunkBuffer(chunk, &buffer_end, (char*)read_buffer,
@@ -393,25 +357,13 @@ void SendMessageRead(
 }
 
 void SendMessageWrite(
-    UNICODE_STRING file_name,
+    char *file_name,
+    USHORT file_name_size,
     HANDLE pid,
     NTSTATUS status,
     ULONG write_length,
     char* write_buffer)
 {
-    // ## REMOVE THIS ##
-    /*
-    if(file_name.Buffer == NULL || wcsstr(file_name.Buffer,
-            L"testing") == NULL) {
-        return;
-    }
-    */
-    // #################
-    if(file_name.Length >= 34) {
-        file_name.Buffer += 17;
-        file_name.Length -= 34;
-    }
-
     ULONG message_tag = 'wgsM';
     char *buffer_end;
     long long buffer_free;
@@ -430,10 +382,10 @@ void SendMessageWrite(
             sizeof(pid));
     AddToChunkBuffer(chunk, &buffer_end, (char*)&status,
             sizeof(status));
-    AddToChunkBuffer(chunk, &buffer_end, (char*)&file_name.Length,
-            sizeof(file_name.Length));
-    AddToChunkBuffer(chunk, &buffer_end, (char*)file_name.Buffer,
-            file_name.Length);
+    AddToChunkBuffer(chunk, &buffer_end, (char*)&file_name_size,
+            sizeof(file_name_size));
+    AddToChunkBuffer(chunk, &buffer_end, (char*)file_name,
+            file_name_size);
     AddToChunkBuffer(chunk, &buffer_end, (char*)&write_length,
             sizeof(write_length));
     AddToChunkBuffer(chunk, &buffer_end, (char*)write_buffer,
@@ -458,15 +410,6 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationCreate(
 {
     UNREFERENCED_PARAMETER(CompletionContext);
     UNREFERENCED_PARAMETER(Flags);
-    // ## REMOVE THIS ##
-    /*
-    if(FltObjects->FileObject->FileName.Buffer == NULL ||
-            wcsstr(FltObjects->FileObject->FileName.Buffer,
-            L"testing") == NULL) {
-        return FLT_POSTOP_FINISHED_PROCESSING;
-    }
-    */
-    // #################
 
     if(FltObjects->FileObject->DeviceObject->DeviceType !=
             FILE_DEVICE_NAMED_PIPE) {
@@ -476,27 +419,42 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationCreate(
     HANDLE pid = FltGetRequestorProcessId(Data);
     FLT_FILE_NAME_INFORMATION *file_name_information = NULL;
     NTSTATUS status;
+    char *file_name = NULL;
+    USHORT file_name_size = 0;
 
     status = FltGetFileNameInformation(Data,
             FLT_FILE_NAME_OPENED | FLT_FILE_NAME_QUERY_ALWAYS_ALLOW_CACHE_LOOKUP,
             &file_name_information);
 
-    if(!NT_SUCCESS(status)) {
-        DbgPrint("Failed getting file name with error: %x\n", status);
+    if(NT_SUCCESS(status)) {
+        if(file_name_information->Name.Length <= 34) {
+            return FLT_POSTOP_FINISHED_PROCESSING;
+        }
+
+        file_name = file_name_information->Name.Buffer + 17;
+        file_name_size = file_name_information->Name.Length - 34;
+
+        DbgPrint("Postop create captured: %wZ, status: %x, pid %lu\n",
+                file_name_information->Name,
+                Data->IoStatus.Status,
+                pid);
+    } else if(FltObjects->FileObject->FileName.Buffer != NULL) {
+        file_name = FltObjects->FileObject->FileName.Buffer;
+        file_name_size = FltObjects->FileObject->FileName.Length;
+
+        DbgPrint("Postop create captured: %wZ, status: %x, pid %lu\n",
+                FltObjects->FileObject->FileName,
+                Data->IoStatus.Status,
+                pid);
+    } else {
+        DbgPrint("Null file name buffer\n");
+
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
-
-    if(file_name_information->Name.Length == 34) {
-        return FLT_POSTOP_FINISHED_PROCESSING;
-    }
-
-    DbgPrint("Create captured: %wZ, status: %x, pid %lu\n",
-            file_name_information->Name,
-            Data->IoStatus.Status,
-            pid);
 
     if(g_client_port) {
-        SendMessageCreate(file_name_information->Name,
+        SendMessageCreate(file_name,
+                file_name_size,
                 pid,
                 Data->IoStatus.Status);
     }
@@ -512,40 +470,46 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationCreateNamedPipe(
 {
     UNREFERENCED_PARAMETER(CompletionContext);
     UNREFERENCED_PARAMETER(Flags);
-    // ## REMOVE THIS ##
-    /*
-    if(FltObjects->FileObject->FileName.Buffer == NULL ||
-            wcsstr(FltObjects->FileObject->FileName.Buffer,
-            L"testing") == NULL) {
-        return FLT_POSTOP_FINISHED_PROCESSING;
-    }
-    */
-    // #################
 
     HANDLE pid = FltGetRequestorProcessId(Data);
     FLT_FILE_NAME_INFORMATION *file_name_information = NULL;
     NTSTATUS status;
+    char *file_name = NULL;
+    USHORT file_name_size = 0;
 
     status = FltGetFileNameInformation(Data,
             FLT_FILE_NAME_OPENED | FLT_FILE_NAME_QUERY_ALWAYS_ALLOW_CACHE_LOOKUP,
             &file_name_information);
 
-    if(!NT_SUCCESS(status)) {
-        DbgPrint("Failed getting file name with error: %x\n", status);
+    if(NT_SUCCESS(status)) {
+        if(file_name_information->Name.Length <= 34) {
+            return FLT_POSTOP_FINISHED_PROCESSING;
+        }
+
+        file_name = file_name_information->Name.Buffer + 17;
+        file_name_size = file_name_information->Name.Length - 34;
+
+        DbgPrint("Create namd pipe captured: %wZ, status: %x, pid %lu\n",
+                file_name_information->Name,
+                Data->IoStatus.Status,
+                pid);
+    } else if(FltObjects->FileObject->FileName.Buffer != NULL) {
+        file_name = FltObjects->FileObject->FileName.Buffer;
+        file_name_size = FltObjects->FileObject->FileName.Length;
+
+        DbgPrint("Create namd pipe captured: %wZ, status: %x, pid %lu\n",
+                FltObjects->FileObject->FileName,
+                Data->IoStatus.Status,
+                pid);
+    } else {
+        DbgPrint("Null file name buffer\n");
+
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
-
-    if(file_name_information->Name.Length == 34) {
-        return FLT_POSTOP_FINISHED_PROCESSING;
-    }
-
-    DbgPrint("Create namd pipe captured: %wZ, status: %x, pid %lu\n",
-            file_name_information->Name,
-            Data->IoStatus.Status,
-            pid);
 
     if(g_client_port) {
-        SendMessageCreateNamedPipe(file_name_information->Name,
+        SendMessageCreateNamedPipe(file_name,
+                file_name_size,
                 pid,
                 Data->IoStatus.Status);
     }
@@ -559,15 +523,6 @@ FLT_PREOP_CALLBACK_STATUS FLTAPI PreOperationRead(
      _Flt_CompletionContext_Outptr_ PVOID* CompletionContext)
 {
     UNREFERENCED_PARAMETER(CompletionContext);
-    // ## REMOVE THIS ##
-    /*
-    if(FltObjects->FileObject->FileName.Buffer == NULL ||
-            wcsstr(FltObjects->FileObject->FileName.Buffer,
-            L"testing") == NULL) {
-        return FLT_POSTOP_FINISHED_PROCESSING;
-    }
-    */
-    // #################
 
     if(FltObjects->FileObject->DeviceObject->DeviceType !=
             FILE_DEVICE_NAMED_PIPE) {
@@ -629,15 +584,6 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationRead(
 {
     UNREFERENCED_PARAMETER(CompletionContext);
     UNREFERENCED_PARAMETER(Flags);
-    // ## REMOVE THIS ##
-    /*
-    if(FltObjects->FileObject->FileName.Buffer == NULL ||
-            wcsstr(FltObjects->FileObject->FileName.Buffer,
-            L"testing") == NULL) {
-        return FLT_POSTOP_FINISHED_PROCESSING;
-    }
-    */
-    // #################
 
     if(FltObjects->FileObject->DeviceObject->DeviceType !=
             FILE_DEVICE_NAMED_PIPE) {
@@ -650,33 +596,50 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationRead(
     HANDLE pid = FltGetRequestorProcessId(Data);
     FLT_FILE_NAME_INFORMATION *file_name_information = NULL;
     NTSTATUS status;
+    char *file_name = NULL;
+    USHORT file_name_size = 0;
 
     status = FltGetFileNameInformation(Data,
             FLT_FILE_NAME_OPENED | FLT_FILE_NAME_QUERY_ALWAYS_ALLOW_CACHE_LOOKUP,
             &file_name_information);
 
-    if(!NT_SUCCESS(status)) {
-        DbgPrint("Failed getting file name with error: %x\n", status);
+    if(NT_SUCCESS(status)) {
+        if(file_name_information->Name.Length <= 34) {
+            return FLT_POSTOP_FINISHED_PROCESSING;
+        }
+
+        file_name = file_name_information->Name.Buffer + 17;
+        file_name_size = file_name_information->Name.Length - 34;
+
+        DbgPrint("Postop Named pipe read captured: %wZ, status: %x, pid %lu, requested: %lu, got: %u, name size %u\n",
+                file_name_information->Name,
+                Data->IoStatus.Status,
+                pid,
+                read_length_requested,
+                read_length_got,
+                file_name_information->Name.Length);
+    } else if(FltObjects->FileObject->FileName.Buffer != NULL) {
+        file_name = FltObjects->FileObject->FileName.Buffer;
+        file_name_size = FltObjects->FileObject->FileName.Length;
+
+        DbgPrint("Postop Named pipe read captured: %wZ, status: %x, pid %lu, requested: %lu, got: %u, name size %u\n",
+                FltObjects->FileObject->FileName,
+                Data->IoStatus.Status,
+                pid,
+                read_length_requested,
+                read_length_got,
+                FltObjects->FileObject->FileName.Length);
+    } else {
+        DbgPrint("Null file name buffer\n");
+
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
-
-    if(file_name_information->Name.Length == 34) {
-        return FLT_POSTOP_FINISHED_PROCESSING;
-    }
-
-    DbgPrint("Postop Named pipe read captured: %wZ, status: %x, pid %lu, requested: %lu, got: %u, name size %u\n",
-            //FltObjects->FileObject->FileName,
-            file_name_information->Name,
-            Data->IoStatus.Status,
-            pid,
-            read_length_requested,
-            read_length_got,
-            file_name_information->Name.Length);
 
     FLT_POSTOP_CALLBACK_STATUS retValue = FLT_POSTOP_FINISHED_PROCESSING;
 
     if(g_client_port) {
-        SendMessageRead(file_name_information->Name,
+        SendMessageRead(file_name,
+                file_name_size,
                 pid,
                 Data->IoStatus.Status,
                 read_length_got,
@@ -723,7 +686,8 @@ FLT_POSTOP_CALLBACK_STATUS SendReadMessageWhenSafe (
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
 
-    SendMessageRead(FltObjects->FileObject->FileName,
+    SendMessageRead(FltObjects->FileObject->FileName.Buffer,
+            FltObjects->FileObject->FileName.Length,
             pid,
             Data->IoStatus.Status,
             read_length_got,
@@ -740,15 +704,6 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationWrite(
 {
     UNREFERENCED_PARAMETER(CompletionContext);
     UNREFERENCED_PARAMETER(Flags);
-    // ## REMOVE THIS ##
-    /*
-    if(FltObjects->FileObject->FileName.Buffer == NULL ||
-            wcsstr(FltObjects->FileObject->FileName.Buffer,
-            L"testing") == NULL) {
-        return FLT_POSTOP_FINISHED_PROCESSING;
-    }
-    */
-    // #################
 
     if(FltObjects->FileObject->DeviceObject->DeviceType !=
             FILE_DEVICE_NAMED_PIPE) {
@@ -761,31 +716,48 @@ FLT_POSTOP_CALLBACK_STATUS FLTAPI PostOperationWrite(
     HANDLE pid = FltGetRequestorProcessId(Data);
     FLT_FILE_NAME_INFORMATION *file_name_information;
     NTSTATUS status;
+    char *file_name = NULL;
+    USHORT file_name_size = 0;
 
     status = FltGetFileNameInformation(Data,
             FLT_FILE_NAME_OPENED | FLT_FILE_NAME_QUERY_ALWAYS_ALLOW_CACHE_LOOKUP,
             &file_name_information);
 
-    if(!NT_SUCCESS(status)) {
-        DbgPrint("Failed getting file name with error: %x\n", status);
+    if(NT_SUCCESS(status)) {
+        if(file_name_information->Name.Length <= 34) {
+            return FLT_POSTOP_FINISHED_PROCESSING;
+        }
+
+        file_name = file_name_information->Name.Buffer + 17;
+        file_name_size = file_name_information->Name.Length - 34;
+
+        DbgPrint("Named pipe write captured: %wZ, status: %x, pid %lu, requested: %lu, got: %lu, name size: %u\n",
+                file_name_information->Name,
+                Data->IoStatus.Status,
+                pid,
+                write_length_requested,
+                write_length_got,
+                file_name_information->Name.Length);
+    } else if(FltObjects->FileObject->FileName.Buffer != NULL) {
+        file_name = FltObjects->FileObject->FileName.Buffer;
+        file_name_size = FltObjects->FileObject->FileName.Length;
+
+        DbgPrint("Named pipe write captured: %wZ, status: %x, pid %lu, requested: %lu, got: %lu, name size: %u\n",
+                FltObjects->FileObject->FileName,
+                Data->IoStatus.Status,
+                pid,
+                write_length_requested,
+                write_length_got,
+                FltObjects->FileObject->FileName.Length);
+    } else {
+        DbgPrint("Null file name buffer\n");
+
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
-
-    if(file_name_information->Name.Length == 34) {
-        return FLT_POSTOP_FINISHED_PROCESSING;
-    }
-
-    DbgPrint("Named pipe write captured: %wZ, status: %x, pid %lu, requested: %lu, got: %lu, name size: %u\n",
-            //FltObjects->FileObject->FileName,
-            file_name_information->Name,
-            Data->IoStatus.Status,
-            pid,
-            write_length_requested,
-            write_length_got,
-            file_name_information->Name.Length);
 
     if(g_client_port) {
-        SendMessageWrite(file_name_information->Name,
+        SendMessageWrite(file_name,
+                file_name_size,
                 pid,
                 Data->IoStatus.Status,
                 write_length_got,
