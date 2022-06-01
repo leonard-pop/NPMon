@@ -490,10 +490,9 @@ void cleanup() {
     }
 }
 
-void handleCommunication() {
+void handleCommunication(HANDLE &client_port) {
     Message message;
     wchar_t port_name[] = COMM_PORT_NAME;
-    HANDLE client_port;
     HRESULT result;
     std::map< unsigned int, std::vector<MessageChunk> > chunk_map;
     Operation new_operation;
@@ -540,29 +539,28 @@ void handleCommunication() {
             printf("[*] Pausing capture\n");
             chunk_map.clear();
 
-            printf("[*] Closig communicaion port\n");
+            printf("[*] Closing communication port\n");
             CloseHandle(client_port);
 
             if(WaitForSingleObject(g_capturing_event, INFINITE) != WAIT_OBJECT_0) {
                 printf("[X] Waiting for g_capturing_event failed");
             }
 
-            printf("[*] Resuming capture\n");
-            printf("[*] Connecting to communication port\n");
-            result = FilterConnectCommunicationPort(port_name, 0, NULL, 0,
-                    NULL, &client_port);
+            if(g_running) {
+                printf("[*] Resuming capture\n");
+                printf("[*] Connecting to communication port\n");
+                result = FilterConnectCommunicationPort(port_name, 0, NULL, 0,
+                        NULL, &client_port);
 
-            if(result != S_OK) {
-                printf("[X] Error connecting: %lx\n", result);
-                return;
+                if(result != S_OK) {
+                    printf("[X] Error connecting: %lx\n", result);
+                    return;
+                }
+
+                printf("[*] Successfully reconnected to communication port\n");
             }
-
-            printf("[*] Successfully reconnected to communication port\n");
         }
     }
-
-    printf("[*] Closig communicaion port\n");
-    CloseHandle(client_port);
 }
 
 char* getOperationPipeName(Operation operation) {
@@ -984,32 +982,27 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 }
 
 int main(void) {
-    std::thread communication_thread;
+    HANDLE client_port = INVALID_HANDLE_VALUE;
+    std::thread communication_thread, stop_communication_thread;
     signal(SIGINT, stop);
     g_capturing_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 
-    communication_thread = std::thread(handleCommunication);
-
-    /*
-    CreateNamedPipeOperation testing_create_np_op;
-    testing_create_np_op.pid = (HANDLE)123;
-    testing_create_np_op.pipe_name = "/pipe-name";
-    testing_create_np_op.status = 0;
-    Operation testing_operation;
-    testing_operation.type = OPERATION_CREATE_NAMED_PIPE;
-    testing_operation.details.create_np_operation = &testing_create_np_op;
-    g_operations.push_back(testing_operation);
-    */
+    communication_thread = std::thread(handleCommunication,
+            std::ref(client_port));
 
     renderGUI();
 
     g_running = 0;
     SetEvent(g_capturing_event);
+
+    printf("[*] Closing communication port\n");
+    CloseHandle(client_port);
+
     communication_thread.join();
 
     printf("[*] Cleanup\n");
     cleanup();
 
-    printf("[*] Exitting\n");
+    printf("[*] Exiting\n");
     return 0;
 }
