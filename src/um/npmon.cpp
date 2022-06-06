@@ -620,10 +620,15 @@ void toggleCapturing() {
 void showMainWindow() {
     ImGui::Begin("Main window", NULL, ImGuiWindowFlags_MenuBar);
     static bool auto_scroll = true;
+    static bool show_buffers = true;
 
     if(shortcutIsPressed(ImGuiKeyModFlags_Ctrl, ImGuiKey_E, false)) {
         g_capturing = !g_capturing;
         toggleCapturing();
+    }
+
+    if(shortcutIsPressed(ImGuiKeyModFlags_Ctrl, ImGuiKey_B, false)) {
+        show_buffers = !show_buffers;
     }
 
     if(shortcutIsPressed(ImGuiKeyModFlags_Ctrl, ImGuiKey_A, false)) {
@@ -637,6 +642,9 @@ void showMainWindow() {
     if(ImGui::BeginMenuBar()){
         if(ImGui::BeginMenu("File")) {
             if(ImGui::MenuItem("Capturing", "Ctrl+E", &g_capturing)) {
+                toggleCapturing();
+            }
+            if(ImGui::MenuItem("Show buffers", "Ctrl+B", &show_buffers)) {
                 toggleCapturing();
             }
             if(ImGui::MenuItem("Exit", NULL)) {
@@ -782,8 +790,10 @@ void showMainWindow() {
                                 ImGui::LogToClipboard();
                             }
 
-                            showBytes(g_operations[i].details.write_operation->buffer_size,
-                                g_operations[i].details.write_operation->buffer);
+                            if(show_buffers) {
+                                showBytes(g_operations[i].details.write_operation->buffer_size,
+                                    g_operations[i].details.write_operation->buffer);
+                            }
 
                             if(copy_buffer) {
                                 ImGui::LogFinish();
